@@ -1,0 +1,349 @@
+ body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-image: url('../img/loggin/loggin.webp');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            font-family: 'Montserrat';
+        }
+
+
+
+     /* Fuente Montserrat - Cargado desde static/fonts/ */
+    
+    @font-face {
+        font-family: 'Montserrat';
+        src: url('../../fonts/static/Montserrat-Black.ttf') format('truetype');
+        font-weight: 900;
+        font-style: normal;
+        
+      }
+    
+    @font-face {
+    font-family: 'Montserrat';
+    src: url('../../fonts/static/Montserrat-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Montserrat';
+    src: url('../../fonts/static/Montserrat-SemiBold.ttf') format('truetype');
+    font-weight: 600;
+    font-style: normal;
+}
+
+
+  @font-face {
+    font-family: 'Montserrat';
+    src: url('../../fonts/static/Montserrat-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+  }
+
+  @font-face {
+      font-family: 'Montserrat';
+      src: url('../../fonts/static/Montserrat-BoldItalic.ttf') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+  }
+  
+
+@font-face {
+    font-family: 'Montserrat';
+    src: url('../../fonts/static/Montserrat-Light.ttf') format('truetype');
+    font-weight: 300;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Montserrat';
+    src: url('../../fonts/static/Montserrat-ExtraLight.ttf') format('truetype');
+    font-weight: 200;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Montserrat';
+    src: url('../../fonts/static/Montserrat-Thin.ttf') format('truetype');
+    font-weight: 100;
+    font-style: normal;
+}
+
+        .modern-bg {
+            display: none;
+        }
+
+        .centered-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modern-login-container {
+            position: relative;
+            background: rgba(255,255,255,0.98);
+            border-radius: 22px;
+            box-shadow: 0 8px 40px 0 rgba(0,0,0,0.13), 0 1.5px 4px 0 rgba(0,123,255,0.07);
+            padding: 32px 50px 24px 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 400px;
+            max-width: 600px;
+            width: 90vw;
+            z-index: 2;
+            backdrop-filter: blur(200px);
+            animation: fadeInDown 0.7s cubic-bezier(.23,1.01,.32,1) both;
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px);}
+            to { opacity: 1; transform: translateY(0);}
+        }
+
+        .modern-logo {
+            width: 130px;
+            height: 125px;
+            margin-bottom: 14px;
+            filter: drop-shadow(0 2px 8px rgba(76,175,80,0.12));
+        }
+
+        .modern-title {
+            font-family: 'Bowlby One SC', 'Montserrat', sans-serif;
+            font-size: 1.3rem;
+            color: #388E3C;
+            margin-bottom: 18px;
+            letter-spacing: 1px;
+            text-align: center;
+            text-shadow: 0 1px 0 #FFD600, 0 2px 8px rgba(56,142,60,0.08);
+        }
+
+        .modern-login-form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .modern-input-group {
+            position: relative;
+            width: 100%;
+        }
+
+        .modern-input-group input {
+            width: 100%;
+            padding: 11px 40px 11px 14px;
+            border: 1.5px solid #C8E6C9;
+            border-radius: 10px;
+            font-size: 1rem;
+            background: #F1F8E9;
+            outline: none;
+            transition: border 0.2s, box-shadow 0.2s;
+            color: #222;
+            box-shadow: 0 1px 2px rgba(56,142,60,0.07);
+        }
+
+        .modern-input-group input:focus {
+            border: 1.5px solid #FFD600;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(56,142,60,0.13);
+        }
+
+        .modern-input-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            opacity: 0.7;
+            color: #FFD600;
+        }
+
+        .modern-login-button {
+            width: 100%;
+            padding: 11px;
+            background: linear-gradient(90deg, #388E3C 0%, #43A047 100%);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.08rem;
+            font-weight: 500;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(56,142,60,0.09);
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .modern-login-button:hover {
+            background: linear-gradient(90deg, #43A047 0%, #388E3C 100%);
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 4px 16px rgba(56,142,60,0.13);
+        }
+
+        .modern-nav {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .modern-nav a {
+            flex: 1;
+            text-align: center;
+            padding: 10px 0;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .modern-nav .inicio {
+            background: #fffbe6;
+            color: #388E3C;
+            border: 1.5px solid #FFD600;
+        }
+        .modern-nav .inicio:hover {
+            background: #FFD600;
+            color: #222;
+        }
+        .modern-nav .registro {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1.5px solid #1976d2;
+        }
+        .modern-nav .registro:hover {
+            background: #1976d2;
+            color: #fff;
+        }
+        .modern-nav .recuperar {
+            background: #fffde7;
+            color: #ff9800;
+            border: 1.5px solid #ff9800;
+        }
+        .modern-nav .recuperar:hover {
+            background: #ff9800;
+            color: #fff;
+        }
+
+        @media (max-width: 700px) {
+            .modern-login-container {
+                min-width: 90vw;
+                max-width: 98vw;
+                padding: 18px 2vw 14px 2vw;
+            }
+        }
+        @media (max-width: 480px) {
+            .modern-login-container {
+                min-width: 30vw;
+                max-width: 100vw;
+                padding: 10px 1vw 10px 1vw;
+            }
+            .modern-title {
+                font-size: 1rem;
+            }
+            .modern-logo {
+                width: 80px;
+                height: 80px;
+            }
+            .modern-nav a {
+                font-size: 0.95rem;
+                padding: 8px 0;
+            }
+        }
+        .modern-input-group {
+                position: relative;
+                width: 100%;
+                margin-bottom: 8px;
+            }
+            .modern-input-group input {
+                width: 100%;
+                padding: 14px 48px 14px 18px;
+                border: 2px solid #43A047; /* Borde verde */
+                border-radius: 14px;
+                font-size: 1.08rem;
+                background: #f5f7fa;
+                box-shadow: 0 2px 12px rgba(56,142,60,0.07);
+                color: #222;
+                transition: box-shadow 0.2s, background 0.2s, border 0.2s;
+                outline: none;
+            }
+            .modern-input-group input:focus {
+                background: #fff;
+                border: 2.5px solid #388E3C; /* Borde verde más oscuro al enfocar */
+                box-shadow: 0 4px 18px rgba(56,142,60,0.13), 0 0 0 2px #FFD600;
+            }
+            .modern-input-icon {
+                position: absolute;
+                right: 18px;
+                top: 50%;
+                transform: translateY(-50%);
+                pointer-events: none;
+                opacity: 0.8;
+                color: #43A047;
+            }
+
+                        .modern-input-group input {
+                border: 1.5px solid #e0e0e0 !important;
+                background: #f5f7fa;
+                color: #222;
+                transition: border 0.2s, box-shadow 0.2s, background 0.2s;
+            }
+            .modern-input-group input:focus {
+                border: 2px solid #43A047 !important;
+                background: #fff;
+                box-shadow: 0 4px 18px rgba(56,142,60,0.13);
+            }
+            .modern-input-icon {
+                color: #43A047;
+            }
+            .modern-login-button {
+                background: linear-gradient(90deg, #388E3C 0%, #43A047 100%);
+                color: #fff;
+                border: none;
+                border-radius: 10px;
+                font-size: 1.08rem;
+                font-weight: 900;
+                cursor: pointer;
+                letter-spacing: 0.5px;
+                box-shadow: 0 2px 8px rgba(56,142,60,0.09);
+                transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+            }
+            .modern-login-button:hover {
+                background: linear-gradient(90deg, #43A047 0%, #388E3C 100%);
+                transform: translateY(-2px) scale(1.03);
+                box-shadow: 0 4px 16px rgba(56,142,60,0.18);
+            }
+
+            /* Estilos para el botón de toggle de contraseña */
+            .password-group .modern-input-icon {
+                right: 50px;
+            }
+            .password-group input {
+                padding-right: 80px;
+            }
+            .password-group #togglePassword {
+                position: absolute;
+                right: 18px;
+                top: 50%;
+                transform: translateY(-50%);
+                border: none;
+                background: none;
+                color: #43A047;
+                cursor: pointer;
+                padding: 0;
+                font-size: 1rem;
+                opacity: 0.8;
+                transition: opacity 0.2s;
+            }
+            .password-group #togglePassword:hover {
+                opacity: 1;
+            }
+
+
