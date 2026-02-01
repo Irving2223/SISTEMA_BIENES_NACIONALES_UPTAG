@@ -16,7 +16,7 @@
 }
 
 .footer-inti a {
-    color: #008b2aff; /* Color azul para los enlaces */
+    color: #ff8a00; /* Color azul para los enlaces */
     text-decoration: none; /* Elimina el subrayado por defecto */
     white-space: nowrap; /* Evita que los enlaces se rompan en varias líneas */
 }

@@ -35,14 +35,14 @@
 <body class="index-page">
 
 
-  <header id="header" class="header d-flex align-items-center fixed-top">
+  <header id="header" class="header d-flex align-items-center fixed-top" style="background-color: rgba(75, 75, 75, 0.9);">
     <div class="container position-relative d-flex align-items-center justify-content-between">
 
       <a href="index.php" class="logo d-flex align-items-center me-auto me-xl-0">
         <img src="assets/img/LOGO INTI.png" class="logo-img" alt="Logo INTI" style="height: 50px;">
       </a>
 
-      <nav id="navmenu" class="navmenu">
+      <nav id="navmenu" class="navmenu" >
         <ul>
           <li><a href="#Inicio" class="active">Inicio</a></li>
           <li><a href="#¿Quienes somos?">¿Quiénes somos?</a></li>
@@ -50,10 +50,10 @@
           <li><a href="#Vision">Vision</a></li>
           <li><a href="#valores">Valores</a></li>
           </ul>
-   
+    
       </nav>
 
-      <a class="btn-getstarted" href="Loggin.php">Iniciar Sesion</a>
+      <a class="btn-getstarted" href="Loggin.php" >Iniciar Sesion</a>
 
     </div>
   </header>
@@ -61,13 +61,13 @@
   <main class="main">
 
     <!-- Hero Section -->
-    <section id="Inicio" class="hero section dark-background">
+    <section id="Inicio" class="hero section dark-background" style="background: linear-gradient(90deg,rgba(219, 155, 35, 1) 0%, rgba(255, 145, 0, 1) 50%, rgba(252, 203, 69, 1) 100%);">
       <div class="container" data-aos="fade-up" data-aos-delay="100">
         <div class="row align-items-center">
           <div class="col-lg-6">
             <div class="hero-content" data-aos="fade-up" data-aos-delay="200">
-              <h2 style="font-weight:900;">Sistema de Información para la Gestión Administrativa</h2>
-              <p style="font-weight:400;"> Departamento de Atención al Campesino del Instituto Nacional de Tierras (INTI)</p>
+              <h2 style="font-weight:900;">Sistema Oficina de Bienes Nacionales UPTAG</h2>
+              <p style="font-weight:400;"> Universidad Politécnica Territorial de Falcón Alonso Gamero (UPTAG)</p>
               <div class="hero-btns">
                 <a href="Loggin.php" class="btn btn-primary" style="font-weight:500;">Iniciar Sesion</a>
               </div>
@@ -78,7 +78,7 @@
           </div>
           <div class="col-lg-6">
             <div class="hero-image" data-aos="zoom-out" data-aos-delay="300">
-              <img src="assets/img/index/campecino.webp" alt="" class="img-fluid">
+              <img src="assets/img/index/aula magna.webp" alt="" class="img-fluid">
             </div>
           </div>
         </div>
@@ -97,7 +97,7 @@
             <div class="about-image">
               <img src="assets/img/index/sede INTI.webp" alt="About Our Consulting Firm" class="img-fluid main-image">
               <div class="experience-badge">
-                <span class="years">15+</span>
+                <span class="years">55+</span>
                 <span class="text">Años de Experiencia</span>
               </div>
             </div>
@@ -105,7 +105,7 @@
 
           <div class="col-lg-6" data-aos="fade-up" data-aos-delay="300">
             <div class="about-content">
-              <h2>¿Quiénes somos en el INTI?</h2>
+              <h2>¿Quiénes somos en la oficina de Bienes Nacionales UPTAG?</h2>
               
               <div class="row features-row">
                 <div class="col-md-6">
@@ -113,8 +113,8 @@
                     <div class="icon">
                       <i class="bi bi-graph-up-arrow"></i>
                     </div>
-                    <h4>Institución Garante del Orden Agrario</h4>
-                    <p>El INTI es el organismo rector de la administración y adjudicación de tierras con vocación agrícola en Venezuela, comprometido con la legalidad y el desarrollo del campo.</p>
+                    <h4>Registradores de Activos Universitarios</h4>
+                    <p>Somos los encargados de oficializar el ingreso de cada bien a la institución</p>
                   </div>
                 </div>
 
@@ -123,8 +123,8 @@
                     <div class="icon">
                       <i class="bi bi-lightbulb"></i>
                     </div>
-                    <h4>Promotores de Justicia Territorial</h4>
-                    <p>Trabajamos por una distribución justa y equitativa de la tierra, apoyando al campesinado y productores en el acceso seguro a este recurso vital.</p>
+                    <h4>Gestores de Movilidad y Ubicación</h4>
+                    <p>Actuamos como los supervisores del flujo interno de mobiliario y equipos entre departamentos, oficinas y PNF.</p>
                   </div>
                 </div>
 
@@ -133,24 +133,12 @@
                     <div class="icon">
                       <i class="bi bi-people"></i>
                     </div>
-                    <h4>Aliados del Desarrollo Nacional</h4>
-                    <p>Contribuimos al crecimiento económico y agroalimentario del país mediante políticas agrarias responsables, sustentables y adaptadas al contexto nacional.</p>
+                    <h4>Auditores de Vida Útil y Salidas</h4>
+                    <p>Realizamos la desincorporación formal en el sistema, dejando una "leyenda" o registro detallado del motivo y la fecha de salida del inventario.</p>
                   </div>
                 </div>
 
-                <div class="col-md-6">
-                  <div class="feature-item">
-                    <div class="icon">
-                      <i class="bi bi-trophy"></i>
-                    </div>
-                    <h4>Transformadores Digitales del Sector Público</h4>
-                    <p>Apostamos por la innovación tecnológica para modernizar nuestros procesos, fortalecer la transparencia y mejorar el servicio a los ciudadanos.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+
 
       </div>
 
@@ -247,7 +235,7 @@
                     <h4>Construir un modelo de soberanía territorial</h4>
                     <p>Contribuir activamente al desarrollo de un país donde la tierra esté al servicio de la producción, la equidad y la justicia social.
 
-                </p>
+                  </p>
                   </div>
                 </div>
 
@@ -375,7 +363,7 @@
 }
 
 .footer-inti a {
-    color: #008b2aff; /* Color azul para los enlaces */
+    color: #ff6600; /* Color naranja para los enlaces */
     text-decoration: none; /* Elimina el subrayado por defecto */
     white-space: nowrap; /* Evita que los enlaces se rompan en varias líneas */
 }

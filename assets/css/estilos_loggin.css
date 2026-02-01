@@ -168,7 +168,7 @@
         .modern-login-button {
             width: 100%;
             padding: 11px;
-            background: linear-gradient(90deg, #388E3C 0%, #43A047 100%);
+            background: linear-gradient(90deg, #ffc400 0%, #ffe600 100%);
             color: #fff;
             border: none;
             border-radius: 10px;
@@ -181,7 +181,7 @@
         }
 
         .modern-login-button:hover {
-            background: linear-gradient(90deg, #43A047 0%, #388E3C 100%);
+            background: linear-gradient(90deg, #cc9600 0%, #ffd000 100%);
             transform: translateY(-2px) scale(1.03);
             box-shadow: 0 4px 16px rgba(56,142,60,0.13);
         }

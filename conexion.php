@@ -7,7 +7,7 @@ $_SESSION['usuario']['ultimo_acceso'] = time();
 $host = "localhost";
 $user = "root";
 $pass = "";
-$db = "bd_INTI";
+$db = "bienes_nacionales_uptag";
 
 $conn = mysqli_connect($host, $user, $pass, $db);
 

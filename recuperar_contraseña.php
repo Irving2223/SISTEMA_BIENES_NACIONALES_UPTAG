@@ -9,14 +9,14 @@ $accion = $_POST['accion'] ?? 'seleccionar';
 $usuarios = [];
 
 // Obtener lista de usuarios con email desde la base de datos
-$sql_usuarios = "SELECT cedula, nombre, apellido, email FROM usuarios WHERE activo = 1 AND email != '' ORDER BY nombre";
+$sql_usuarios = "SELECT cedula, nombres, email FROM usuarios WHERE activo = 1 AND email != '' ORDER BY nombres";
 $result_usuarios = mysqli_query($conn, $sql_usuarios);
 if ($result_usuarios) {
     while ($row = mysqli_fetch_assoc($result_usuarios)) {
         $usuarios[] = $row;
     }
 } else {
-    $mensaje = "Error al cargar usuarios.";
+    $mensaje = "Error al cargar usuarios: " . mysqli_error($conn);
     $tipo_mensaje = "error";
 }
 
@@ -44,12 +44,15 @@ foreach ($temp_storage as $key => $data) {
     }
 }
 
+// Guardar almacenamiento actualizado
+file_put_contents($storage_file, json_encode($temp_storage));
+
 // Procesar envío de código
 if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
     $cedula_usuario = mysqli_real_escape_string($conn, $_POST['cedula_usuario']);
     
     // Buscar usuario
-    $sql_buscar = "SELECT cedula, nombre, apellido, email FROM usuarios WHERE cedula = ? AND activo = 1 AND email != ''";
+    $sql_buscar = "SELECT cedula, nombres, email FROM usuarios WHERE cedula = ? AND activo = 1 AND email != ''";
     $stmt_buscar = mysqli_prepare($conn, $sql_buscar);
     mysqli_stmt_bind_param($stmt_buscar, "s", $cedula_usuario);
     mysqli_stmt_execute($stmt_buscar);
@@ -61,7 +64,7 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
         // Guardar código en almacenamiento temporal
         $temp_storage[$cedula_usuario] = [
             'cedula' => $usuario['cedula'],
-            'nombre_completo' => $usuario['nombre'] . ' ' . $usuario['apellido'],
+            'nombre_completo' => $usuario['nombres'],
             'email' => $usuario['email'],
             'codigo' => $codigo,
             'intentos' => 0,
@@ -100,13 +103,13 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
             );
 
             // Remitente y destinatario
-            $mail->setFrom('sistema.inti.dac@gmail.com', 'Sistema INTI');
+            $mail->setFrom('sistema.inti.dac@gmail.com', 'Sistema Bienes Nacionales');
             $mail->addAddress($usuario['email']);
 
             // Contenido del correo
             $mail->isHTML(true);
             $mail->CharSet = 'UTF-8';
-            $mail->Subject = "Código de Recuperación - Sistema INTI";
+            $mail->Subject = "Código de Recuperación - Sistema Bienes Nacionales";
             $mail->Body = "
             <!DOCTYPE html>
             <html lang='es'>
@@ -130,7 +133,7 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
                         box-shadow: 0 10px 30px rgba(0,0,0,0.1);
                     }
                     .header {
-                        background: linear-gradient(135deg, #1E3A3A, #2E7D32);
+                        background: linear-gradient(135deg, #ff6600, #ff8533);
                         padding: 30px 20px;
                         text-align: center;
                         color: white;
@@ -170,18 +173,18 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
                         margin-bottom: 30px;
                     }
                     .code-container {
-                        background: linear-gradient(135deg, #e8f5e8, #f1f8e9);
+                        background: linear-gradient(135deg, #fff5eb, #ffe0cc);
                         padding: 30px;
                         border-radius: 15px;
                         margin: 30px 0;
-                        border: 3px solid #a5d6a7;
-                        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+                        border: 3px solid #ff6600;
+                        box-shadow: 0 5px 15px rgba(255, 102, 0, 0.1);
                     }
                     .code {
                         font-size: 36px;
                         font-weight: 900;
                         letter-spacing: 8px;
-                        color: #2e7d32;
+                        color: #ff6600;
                         text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
                         margin: 0;
                     }
@@ -195,7 +198,7 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
                         border-left: 4px solid #ffc107;
                     }
                     .footer {
-                        background: #1E3A3A;
+                        background: #ff6600;
                         color: white;
                         padding: 30px 20px;
                         text-align: center;
@@ -216,7 +219,7 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
                         margin-top: 15px;
                     }
                     .footer-links a {
-                        color: #4CAF50;
+                        color: #fff;
                         text-decoration: none;
                         margin: 0 10px;
                         font-weight: 500;
@@ -230,15 +233,15 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
                 <div class='container'>
                     <!-- Header -->
                     <div class='header'>
-                        <h1 class='title'>Sistema INTI</h1>
-                        <p class='subtitle'>Instituto Nacional de Tierras</p>
+                        <h1 class='title'>Bienes Nacionales</h1>
+                        <p class='subtitle'>Oficina de Gestión Administrativa</p>
                     </div>
 
                     <!-- Content -->
                     <div class='content'>
-                        <h2 class='greeting'>¡Hola {$usuario['nombre']} {$usuario['apellido']}!</h2>
+                        <h2 class='greeting'>¡Hola {$usuario['nombres']}!</h2>
                         <p class='message'>
-                            Has solicitado restablecer tu contraseña en el Sistema INTI. Para completar el proceso,
+                            Has solicitado restablecer tu contraseña en el Sistema de Bienes Nacionales. Para completar el proceso,
                             utiliza el siguiente código de verificación:
                         </p>
 
@@ -258,14 +261,12 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
                     <!-- Footer -->
                     <div class='footer'>
                         <p class='footer-text'>
-                            <strong>Sistema de Información para la Gestión Administrativa del Departamento de Atención al Campesino</strong><br>
-                            Instituto Nacional de Tierras (INTI) © 2025<br>
+                            <strong>Sistema de Gestión de Bienes Nacionales</strong><br>
+                            UPTAG © 2025<br>
                             Todos los derechos reservados
                         </p>
                         <div class='footer-links'>
-                            <a href='http://localhost/SISTEMA%20INTI%20DAC/Loggin.php'>Acceder al Sistema</a> |
-                            <a href='https://wa.me/584121028791'>Soporte Técnico A</a> |
-                            <a href='https://wa.me/584121263056'>Soporte Técnico B</a>
+                            <a href='http://localhost/SISTEMA%20DE%20HUMBERTO/Loggin.php'>Acceder al Sistema</a>
                         </div>
                     </div>
                 </div>
@@ -280,20 +281,25 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
             $tipo_mensaje = "success";
             $accion = 'verificar_codigo';
             
-            // Registrar en bitácora
+            // Registrar en auditoria
             $detalle = "Solicitud de recuperación de contraseña enviada a {$usuario['email']}";
-            $sql_bitacora = "INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle) VALUES (?, 'Consulta', 'usuarios', ?, ?)";
-            $stmt_bitacora = mysqli_prepare($conn, $sql_bitacora);
-            mysqli_stmt_bind_param($stmt_bitacora, "sss", $usuario['cedula'], $usuario['cedula'], $detalle);
-            mysqli_stmt_execute($stmt_bitacora);
-            mysqli_stmt_close($stmt_bitacora);
+            $sql_auditoria = "INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_nuevos, ip_address) VALUES ('usuarios', 'INSERT', ?, ?, ?)";
+            $stmt_auditoria = mysqli_prepare($conn, $sql_auditoria);
+            $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+            $datos = json_encode(['accion' => 'recuperacion_password', 'email' => $usuario['email']]);
+            mysqli_stmt_bind_param($stmt_auditoria, "sss", $usuario['cedula'], $datos, $ip);
+            mysqli_stmt_execute($stmt_auditoria);
+            mysqli_stmt_close($stmt_auditoria);
             
         } catch (Exception $e) {
-            $mensaje = "Error al enviar el correo: " . htmlspecialchars($mail->ErrorInfo);
-            $tipo_mensaje = "error";
+            // Si falla el envío de email, mostrar código en pantalla para desarrollo
+            $codigo_para_mostrar = $codigo;
+            $mensaje = "Modo desarrollo: Servidor de correo no disponible. Codigo: $codigo_para_mostrar";
+            $tipo_mensaje = "warning";
+            $accion = 'verificar_codigo';
         }
     } else {
-        $mensaje = "No se encontró un usuario activo con ese correo o cédula.";
+        $mensaje = "No se encontró un usuario activo con esa cédula.";
         $tipo_mensaje = "error";
     }
     mysqli_stmt_close($stmt_buscar);
@@ -380,10 +386,10 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
             $tipo_mensaje = "error";
             $accion = 'cambiar_contraseña';
         } else {
-            // Actualizar contraseña
-            $hash_clave = md5($nueva_clave); // Usando MD5 como en tu sistema
+            // Actualizar contraseña con password_hash
+            $hash_clave = password_hash($nueva_clave, PASSWORD_DEFAULT);
             
-            $sql_update = "UPDATE usuarios SET clave_usuario = ? WHERE cedula = ?";
+            $sql_update = "UPDATE usuarios SET password_hash = ? WHERE cedula = ?";
             $stmt_update = mysqli_prepare($conn, $sql_update);
             mysqli_stmt_bind_param($stmt_update, "ss", $hash_clave, $cedula_usuario);
             
@@ -392,13 +398,15 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
                 $tipo_mensaje = "success";
                 $accion = 'finalizado';
                 
-                // Registrar en bitácora
+                // Registrar en auditoria
                 $detalle = "Contraseña restablecida mediante recuperación";
-                $sql_bitacora = "INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle) VALUES (?, 'Edicion', 'usuarios', ?, ?)";
-                $stmt_bitacora = mysqli_prepare($conn, $sql_bitacora);
-                mysqli_stmt_bind_param($stmt_bitacora, "sss", $cedula_usuario, $cedula_usuario, $detalle);
-                mysqli_stmt_execute($stmt_bitacora);
-                mysqli_stmt_close($stmt_bitacora);
+                $sql_auditoria = "INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_nuevos, ip_address) VALUES ('usuarios', 'UPDATE', ?, ?, ?)";
+                $stmt_auditoria = mysqli_prepare($conn, $sql_auditoria);
+                $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+                $datos = json_encode(['accion' => 'password_restablecido']);
+                mysqli_stmt_bind_param($stmt_auditoria, "sss", $cedula_usuario, $datos, $ip);
+                mysqli_stmt_execute($stmt_auditoria);
+                mysqli_stmt_close($stmt_auditoria);
                 
             } else {
                 $mensaje = "Error al actualizar la contraseña.";
@@ -416,7 +424,7 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="imagenes/LOGO INTI.png" type="image/x-icon">
+    <link rel="icon" href="assets/img/LOGO INTI.png" type="image/x-icon">
 
     <!-- Bootstrap local -->
     <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
@@ -457,7 +465,7 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
         }
 
         .form-step h3 {
-            color: #2c3e50;
+            color: #ff6600;
             margin-bottom: 25px;
             font-weight: 600;
             text-align: center;
@@ -480,9 +488,9 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
         }
         .modern-input-group select:focus,
         .modern-input-group input:focus {
-            border-color: #4CAF50;
+            border-color: #ff6600;
             outline: none;
-            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+            box-shadow: 0 0 0 3px rgba(255, 102, 0, 0.1);
         }
         .countdown {
             text-align: center;
@@ -498,251 +506,213 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
             font-family: 'Montserrat', sans-serif;
         }
         .btn-primary {
-            background: linear-gradient(135deg, #4CAF50, #2E7D32);
-            border: none;
-            padding: 12px 25px;
-            font-size: 16px;
+            background: linear-gradient(90deg, #ff6600, #ff8533) !important;
+            border: none !important;
+            font-family: 'Montserrat', sans-serif;
             font-weight: 600;
+            padding: 12px 24px;
             border-radius: 8px;
             transition: all 0.3s ease;
-            width: 100%;
-            font-family: 'Montserrat', sans-serif;
         }
         .btn-primary:hover {
+            background: linear-gradient(90deg, #e65c00, #ff6600) !important;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(255, 102, 0, 0.3);
         }
-        .back-link {
-            color: #0d6efd;
-            text-decoration: none;
-            font-size: 14px;
-            transition: color 0.3s ease;
+        .btn-secondary {
+            background: #6c757d !important;
+            border: none !important;
             font-family: 'Montserrat', sans-serif;
-        }
-        .back-link:hover {
-            color: #0b5ed7;
-            text-decoration: underline;
+            font-weight: 600;
+            padding: 12px 24px;
+            border-radius: 8px;
         }
         .alert {
-            border-radius: 8px;
-            padding: 15px;
-            margin: 15px 0;
             font-family: 'Montserrat', sans-serif;
         }
-        .alert-success {
-            background-color: #d4edda;
-            color: #155724;
-            border-color: #c3e6cb;
+        .text-center a {
+            color: #ff6600 !important;
+            font-family: 'Montserrat', sans-serif;
         }
-        .alert-danger {
-            background-color: #f8d7da;
-            color: #721c24;
-            border-color: #f5c6cb;
-        }
-        /* Ocultar pasos no activos */
-        .form-step {
-            display: none;
-        }
-        .form-step.active {
-            display: block;
-            animation: fadeIn 0.5s ease-in-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        .text-center a:hover {
+            text-decoration: underline !important;
         }
     </style>
 </head>
 <body>
-    <!-- Aquí se muestra el mensaje de error si existe -->
-    <?php if (!empty($mensaje)): ?>
-        <div class="alert alert-<?php echo $tipo_mensaje === 'success' ? 'success' : 'danger'; ?> text-center">
-            <?= $mensaje ?>
+
+<?php if (!empty($mensaje)): ?>
+    <div style="background: <?= $tipo_mensaje === 'error' ? '#f8d7da' : '#d4edda' ?>; color: <?= $tipo_mensaje === 'error' ? '#721c24' : '#155724' ?>; text-align:center; padding:10px; font-size:clamp(1rem, 5vw, 18px); font-weight:700;">
+        <?= $mensaje ?>
+    </div>
+<?php endif; ?>
+
+<div class="centered-container">
+    <div class="modern-login-container">
+
+        <!-- Logo -->
+        <div style="text-align: center; margin-bottom: 25px;">
+            <img src="assets/img/LOGO INTI.png" alt="Logo" style="width: 80px; height: auto;">
         </div>
-    <?php endif; ?>
 
-    <div class="centered-container">
-        <div class="modern-login-container">
-            <!-- Logo sin borde circular -->
-            <img src="assets/img/LOGO INTI.png" alt="Logo INTI" class="modern-logo">
-
-            <!-- Paso 1: Seleccionar usuario -->
-            <div id="seleccionar" class="form-step <?php echo $accion === 'seleccionar' ? 'active' : ''; ?>">
-                <h3 style="font-weight: 800;">Recuperar Contraseña</h3>
+        <!-- Paso 1: Seleccionar Usuario -->
+        <?php if ($accion === 'seleccionar'): ?>
+            <div class="form-step">
+                <h3>Recuperar Contraseña</h3>
                 <form method="POST" action="">
                     <input type="hidden" name="accion" value="enviar_codigo">
-                    
                     <div class="modern-input-group">
-                        <select name="cedula_usuario" class="form-control" required>
-                            <option value="">Seleccione un usuario...</option>
-                            <?php foreach ($usuarios as $user): ?>
-                                <option value="<?php echo $user['cedula']; ?>">
-                                    <?php echo htmlspecialchars($user['nombre'] . ' ' . $user['apellido'] . ' (' . $user['cedula'] . ')'); ?>
+                        <label for="cedula_usuario" class="form-label" style="font-family: 'Montserrat', sans-serif; font-weight: 500;">Seleccionar Usuario</label>
+                        <select name="cedula_usuario" id="cedula_usuario" class="form-control" required style="font-family: 'Montserrat', sans-serif;">
+                            <option value="">-- Seleccionar --</option>
+                            <?php foreach ($usuarios as $u): ?>
+                                <option value="<?= htmlspecialchars($u['cedula']) ?>">
+                                    <?= htmlspecialchars($u['cedula'] . ' - ' . $u['nombres']) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    
-                    <button type="submit" class="btn btn-primary">
-                        Enviar Código de Verificación
-                    </button>
+                    <div style="text-align: center;">
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">
+                            <i class="bi bi-send"></i> Enviar Código
+                        </button>
+                    </div>
                 </form>
             </div>
+        <?php endif; ?>
 
-            <!-- Paso 2: Verificar código -->
-            <div id="verificar_codigo" class="form-step <?php echo $accion === 'verificar_codigo' ? 'active' : ''; ?>">
-                <h3 style="font-weight: 800;">Verificar Código</h3>
-                
+        <!-- Paso 2: Verificar Código -->
+        <?php if ($accion === 'verificar_codigo'): ?>
+            <div class="form-step">
+                <h3>Verificar Código</h3>
+                <p style="text-align: center; font-family: 'Montserrat', sans-serif; color: #666; margin-bottom: 20px;">
+                    Ingrese el código de 6 dígitos enviado a su correo
+                </p>
                 <form method="POST" action="">
                     <input type="hidden" name="accion" value="verificar_codigo">
-                    <input type="hidden" name="cedula_usuario" value="<?php echo htmlspecialchars($_POST['cedula_usuario'] ?? ''); ?>">
-                    
-                    <p style="text-align: center; color: #666; line-height: 1.5;">
-                        Hemos enviado un código de 6 dígitos a tu correo electrónico.
-                    </p>
-                    
+                    <input type="hidden" name="cedula_usuario" value="<?= htmlspecialchars($_POST['cedula_usuario'] ?? '') ?>">
                     <div class="modern-input-group">
-                        <input 
-                            type="text" 
-                            name="codigo" 
-                            placeholder="Ingrese el código de 6 dígitos" 
-                            maxlength="6"
-                            pattern="[0-9]{6}"
-                            title="Debe ingresar exactamente 6 dígitos"
-                            required
-                        >
+                        <label for="codigo" class="form-label" style="font-family: 'Montserrat', sans-serif; font-weight: 500;">Código de Verificación</label>
+                        <input type="text" name="codigo" id="codigo" class="form-control" required 
+                               placeholder="000000" maxlength="6" 
+                               style="text-align: center; font-size: 24px; letter-spacing: 8px; font-weight: 700;"
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                     </div>
-                    
-                    <div class="countdown">
-                        El código expira en 3 minutos
+                    <div class="countdown" id="countdown"></div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button type="button" class="btn btn-secondary" onclick="window.location.href='recuperar_contraseña.php'">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            Verificar Código
+                        </button>
                     </div>
-                    
-                    <button type="submit" class="btn btn-primary">
-                        Verificar Código
-                    </button>
                 </form>
             </div>
+        <?php endif; ?>
 
-            <!-- Paso 3: Cambiar contraseña -->
-            <div id="cambiar_contraseña" class="form-step <?php echo $accion === 'cambiar_contraseña' ? 'active' : ''; ?>">
-                <h3>Cambiar Contraseña</h3>
-                
-                <form method="POST" action="" id="form-cambio">
+        <!-- Paso 3: Cambiar Contraseña -->
+        <?php if ($accion === 'cambiar_contraseña'): ?>
+            <div class="form-step">
+                <h3>Nueva Contraseña</h3>
+                <form method="POST" action="">
                     <input type="hidden" name="accion" value="cambiar_contraseña">
-                    <input type="hidden" name="cedula_usuario" value="<?php echo htmlspecialchars($_POST['cedula_usuario'] ?? ''); ?>">
-                    
-                    <p style="text-align: center; color: #666; line-height: 1.5; margin-bottom: 20px;">
-                        Ingrese su nueva contraseña segura
-                    </p>
-                    
+                    <input type="hidden" name="cedula_usuario" value="<?= htmlspecialchars($_POST['cedula_usuario'] ?? '') ?>">
                     <div class="modern-input-group">
-                        <input 
-                            type="password" 
-                            name="nueva_clave" 
-                            id="nueva_clave"
-                            placeholder="Nueva contraseña" 
-                            required 
-                            minlength="8"
-                        >
+                        <label for="nueva_clave" class="form-label" style="font-family: 'Montserrat', sans-serif; font-weight: 500;">Nueva Contraseña</label>
+                        <input type="password" name="nueva_clave" id="nueva_clave" class="form-control" required minlength="8"
+                               placeholder="Mínimo 8 caracteres" style="font-family: 'Montserrat', sans-serif;">
+                        <div class="feedback-message" id="password-feedback"></div>
                     </div>
-                    
-                    <div class="feedback-message" id="feedback"></div>
-                    
-                    <div class="modern-input-group" style="margin-top: 15px;">
-                        <input 
-                            type="password" 
-                            name="confirmar_clave" 
-                            id="confirmar_clave"
-                            placeholder="Confirmar contraseña" 
-                            required 
-                            minlength="8"
-                        >
+                    <div class="modern-input-group">
+                        <label for="confirmar_clave" class="form-label" style="font-family: 'Montserrat', sans-serif; font-weight: 500;">Confirmar Contraseña</label>
+                        <input type="password" name="confirmar_clave" id="confirmar_clave" class="form-control" required minlength="8"
+                               placeholder="Repita la contraseña" style="font-family: 'Montserrat', sans-serif;">
                     </div>
-                    
-                    <div class="feedback-message" id="confirm-feedback"></div>
-                    
-                    <button type="submit" class="btn btn-primary" id="btnSubmit">
-                        Cambiar Contraseña
-                    </button>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button type="button" class="btn btn-secondary" onclick="window.location.href='recuperar_contraseña.php'">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="btn-cambiar" disabled>
+                            Cambiar Contraseña
+                        </button>
+                    </div>
                 </form>
             </div>
+        <?php endif; ?>
 
-            <!-- Paso 4: Finalizado -->
-            <div id="finalizado" class="form-step <?php echo $accion === 'finalizado' ? 'active' : ''; ?>">
-                <div style="text-align: center; padding: 30px 0;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" fill="#4CAF50" class="bi bi-check-circle" viewBox="0 0 16 16" style="margin: 0 auto 20px;">
-                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
-                        <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06l2.5 2.5a.75.75 0 0 0 1.06 0l3.75-4.75a.75.75 0 0 0-1.06-1.06"/>
-                    </svg>
-                    <h3 style="color: #2c3e50; margin-bottom: 15px;">¡Éxito!</h3>
-                    <p style="color: #666; line-height: 1.5;">
-                        Su contraseña ha sido actualizada correctamente. Ahora puede iniciar sesión con sus nuevas credenciales.
-                    </p>
+        <!-- Paso 4: Finalizado -->
+        <?php if ($accion === 'finalizado'): ?>
+            <div class="form-step" style="text-align: center;">
+                <div style="color: #28a745; font-size: 60px; margin-bottom: 20px;">
+                    <i class="bi bi-check-circle-fill"></i>
                 </div>
-            </div>
-
-            <!-- Botón para volver al login -->
-            <div class="text-center mt-3">
-                <a href="Loggin.php" class="back-link">
-                    ← Volver al inicio de sesión
+                <h3 style="color: #28a745;">¡Contraseña Actualizada!</h3>
+                <p style="font-family: 'Montserrat', sans-serif; color: #666; margin-bottom: 30px;">
+                    Su contraseña ha sido cambiada exitosamente.
+                </p>
+                <a href="Loggin.php" class="btn btn-primary" style="display: inline-block; text-decoration: none;">
+                    <i class="bi bi-box-arrow-in-right"></i> Iniciar Sesión
                 </a>
             </div>
-        </div>
+        <?php endif; ?>
+
+        <!-- Enlace para volver al login -->
+        <?php if ($accion !== 'finalizado'): ?>
+            <div class="text-center mt-3" style="margin-top: 20px;">
+                <a href="Loggin.php" style="color: #ff6600; text-decoration: none; font-size: 14px; font-weight: 300;">
+                    <i class="bi bi-arrow-left"></i> Volver al Inicio de Sesión
+                </a>
+            </div>
+        <?php endif; ?>
+
     </div>
+</div>
 
-    <script>
-        // Validar que solo se ingresen números en el código
-        document.querySelector('input[name="codigo"]')?.addEventListener('input', function(e) {
-            this.value = this.value.replace(/[^0-9]/g, '');
-            if (this.value.length > 6) {
-                this.value = this.value.substring(0, 6);
-            }
-        });
+<script>
+// Validación de contraseña en tiempo real
+document.addEventListener('DOMContentLoaded', function() {
+    const nuevaClaveInput = document.getElementById('nueva_clave');
+    const confirmarClaveInput = document.getElementById('confirmar_clave');
+    const btnCambiar = document.getElementById('btn-cambiar');
+    const feedback = document.getElementById('password-feedback');
 
-        // Auto-enfoque en el input de código
-        document.querySelector('input[name="codigo"]')?.focus();
-
-        // Validación en tiempo real de la contraseña
-        const claveInput = document.getElementById('nueva_clave');
-        const confirmInput = document.getElementById('confirmar_clave');
-        const feedback = document.getElementById('feedback');
-        const confirmFeedback = document.getElementById('confirm-feedback');
-        const btnSubmit = document.getElementById('btnSubmit');
-
-        function validarContrasena(clave) {
+    if (nuevaClaveInput && confirmarClaveInput && btnCambiar) {
+        function validarPassword() {
+            const password = nuevaClaveInput.value;
             let criterios = [];
             let cumplidos = 0;
-            const total = 4;
+            const total = 5;
 
-            if (clave.length >= 8) {
-                criterios.push('<span style="color:green;">✓</span> Al menos 8 caracteres');
+            if (password.length >= 8) {
+                criterios.push('<span style="color:green;">✓</span> Mínimo 8 caracteres');
                 cumplidos++;
             } else {
-                criterios.push('<span style="color:red;">✗</span> Al menos 8 caracteres');
+                criterios.push('<span style="color:red;">✗</span> Mínimo 8 caracteres');
             }
 
-            if (/[A-Z]/.test(clave)) {
-                criterios.push('<span style="color:green;">✓</span> Una letra mayúscula');
+            if (/[A-Z]/.test(password)) {
+                criterios.push('<span style="color:green;">✓</span> Una mayúscula');
                 cumplidos++;
             } else {
-                criterios.push('<span style="color:red;">✗</span> Una letra mayúscula');
+                criterios.push('<span style="color:red;">✗</span> Una mayúscula');
             }
 
-            if (/[a-z]/.test(clave)) {
-                criterios.push('<span style="color:green;">✓</span> Una letra minúscula');
+            if (/[a-z]/.test(password)) {
+                criterios.push('<span style="color:green;">✓</span> Una minúscula');
                 cumplidos++;
             } else {
-                criterios.push('<span style="color:red;">✗</span> Una letra minúscula');
+                criterios.push('<span style="color:red;">✗</span> Una minúscula');
             }
 
-            if (/[0-9]/.test(clave)) {
+            if (/\d/.test(password)) {
                 criterios.push('<span style="color:green;">✓</span> Un número');
                 cumplidos++;
             } else {
                 criterios.push('<span style="color:red;">✗</span> Un número');
             }
 
-            if (/[^A-Za-z0-9]/.test(clave)) {
+            if (/[^A-Za-z0-9]/.test(password)) {
                 criterios.push('<span style="color:green;">✓</span> Un carácter especial');
                 cumplidos++;
             } else {
@@ -750,48 +720,37 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
             }
 
             feedback.innerHTML = criterios.join('<br>');
-            
-            return true; // Siempre devuelve true para que el botón esté habilitado
-        }
 
-        function validarConfirmacion() {
-            const clave = claveInput.value;
-            const confirm = confirmInput.value;
-            
-            if (confirm.length === 0) {
-                confirmFeedback.textContent = '';
-                confirmInput.classList.remove('is-valid', 'is-invalid');
-                return true; // Siempre devuelve true
-            }
-            
-            if (clave === confirm) {
-                confirmFeedback.innerHTML = '<span style="color:green;">✓ Las contraseñas coinciden</span>';
-                confirmInput.classList.add('is-valid');
-                confirmInput.classList.remove('is-invalid');
-                return true;
+            const confirmar = confirmarClaveInput.value;
+            if (cumplidos === total && password === confirmar && password.length > 0) {
+                btnCambiar.disabled = false;
             } else {
-                confirmFeedback.innerHTML = '<span style="color:red;">✗ Las contraseñas no coinciden</span>';
-                confirmInput.classList.add('is-invalid');
-                confirmInput.classList.remove('is-valid');
-                return true; // Siempre devuelve true
+                btnCambiar.disabled = true;
             }
         }
 
-        // Validar ambos campos cada vez que cambien, pero no deshabilitar el botón
-        claveInput.addEventListener('input', function() {
-            validarContrasena(this.value);
-            validarConfirmacion();
-        });
+        nuevaClaveInput.addEventListener('input', validarPassword);
+        confirmarClaveInput.addEventListener('input', validarPassword);
+    }
 
-        confirmInput.addEventListener('input', function() {
-            validarContrasena(claveInput.value);
-            validarConfirmacion();
-        });
+    // Countdown para verificación de código
+    const countdownEl = document.getElementById('countdown');
+    if (countdownEl && <?= json_encode($accion === 'verificar_codigo') ?>) {
+        let tiempoRestante = 180; // 3 minutos
+        countdownEl.innerHTML = `Tiempo restante: ${Math.floor(tiempoRestante / 60)}:${(tiempoRestante % 60).toString().padStart(2, '0')}`;
+        
+        const intervalo = setInterval(() => {
+            tiempoRestante--;
+            if (tiempoRestante <= 0) {
+                clearInterval(intervalo);
+                countdownEl.innerHTML = '<span style="color: red;">El código ha expirado</span>';
+            } else {
+                countdownEl.innerHTML = `Tiempo restante: ${Math.floor(tiempoRestante / 60)}:${(tiempoRestante % 60).toString().padStart(2, '0')}`;
+            }
+        }, 1000);
+    }
+});
+</script>
 
-        // Asegurar que el botón siempre esté habilitado
-        document.addEventListener('DOMContentLoaded', function() {
-            btnSubmit.disabled = false;
-        });
-    </script>
 </body>
 </html>

@@ -34,8 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tipo_mensaje = "error";
         } else {
             try {
-                // Consulta adaptada a la estructura real de la BD
-                $stmt = $conn->prepare("SELECT cedula, nombre, apellido, rol, clave_usuario, activo FROM usuarios WHERE cedula = ?");
+                // Consulta adaptada a la estructura real de la BD bienes_nacionales_uptag
+                $stmt = $conn->prepare("SELECT cedula, nombres, rol, password_hash, activo FROM usuarios WHERE cedula = ?");
                 $stmt->bind_param("s", $cedula);
                 $stmt->execute();
                 $result = $stmt->get_result();
@@ -48,36 +48,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $mensaje = "Su usuario está inactivo. Contacte al administrador.";
                         $tipo_mensaje = "error";
                         
-                        // Registrar intento fallido en bitácora
+                        // Registrar intento fallido en auditoria
                         if ($conn) {
-                            $stmt_bitacora = $conn->prepare("INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle) VALUES (?, 'Consulta', 'usuarios', ?, 'Intento de inicio de sesión fallido - usuario inactivo')");
-                            $stmt_bitacora->bind_param("ss", $cedula, $cedula);
-                            $stmt_bitacora->execute();
-                            $stmt_bitacora->close();
+                            $stmt_auditoria = $conn->prepare("INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_nuevos, ip_address) VALUES ('usuarios', 'INSERT', ?, ?, ?)");
+                            $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+                            $datos = json_encode(['intento' => 'sesion_fallida', 'motivo' => 'usuario_inactivo']);
+                            $stmt_auditoria->bind_param("sss", $cedula, $datos, $ip);
+                            $stmt_auditoria->execute();
+                            $stmt_auditoria->close();
                         }
                     } 
-                    // Verificar contraseña con múltiples métodos de hash
-                    elseif (
-                        md5($clave) === $usuario_data['clave_usuario'] || 
-                        password_verify($clave, $usuario_data['clave_usuario'])
-                    ) {
+                    // Verificar contraseña con password_verify
+                    elseif (password_verify($clave, $usuario_data['password_hash'])) {
                         // Crear sesión con datos del usuario
                         $_SESSION['usuario'] = [
                             'cedula' => $usuario_data['cedula'],
-                            'nombre' => $usuario_data['nombre'],
-                            'apellido' => $usuario_data['apellido'],
-                            'nombre_completo' => trim($usuario_data['nombre'] . ' ' . $usuario_data['apellido']),
+                            'nombre' => $usuario_data['nombres'],
+                            'apellido' => '',
+                            'nombre_completo' => trim($usuario_data['nombres']),
                             'rol' => $usuario_data['rol'],
                             'loggeado' => true,
                             'ultimo_acceso' => time()
                         ];
 
                         
-                        // Registrar en bitácora el inicio de sesión
-                        $stmt_bitacora = $conn->prepare("INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle) VALUES (?, 'Inicio de sesión', 'Sistema', 'Inicio', 'Inicio de sesión exitoso')");
-                        $stmt_bitacora->bind_param("s", $cedula);
-                        $stmt_bitacora->execute();
-                        $stmt_bitacora->close();
+                        // Registrar en auditoria el inicio de sesión
+                        $stmt_auditoria = $conn->prepare("INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_nuevos, ip_address) VALUES ('usuarios', 'INSERT', ?, ?, ?)");
+                        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+                        $datos = json_encode(['accion' => 'inicio_sesion_exitoso']);
+                        $stmt_auditoria->bind_param("sss", $cedula, $datos, $ip);
+                        $stmt_auditoria->execute();
+                        $stmt_auditoria->close();
+                        
+                        // Cerrar conexión después de guardar todo
+                        if (isset($conn) && $conn) {
+                            $conn->close();
+                        }
                         
                         header("Location: home.php");
                         exit();
@@ -85,24 +91,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $mensaje = "Cédula o contraseña incorrectas";
                         $tipo_mensaje = "error";
                         
-                        // Registrar intento fallido en bitácora
+                        // Registrar intento fallido en auditoria
                         if ($conn) {
-                            $stmt_bitacora = $conn->prepare("INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle) VALUES (?, 'Consulta', 'usuarios', ?, 'Intento de inicio de sesión fallido')");
-                            $stmt_bitacora->bind_param("ss", $cedula, $cedula);
-                            $stmt_bitacora->execute();
-                            $stmt_bitacora->close();
+                            $stmt_auditoria = $conn->prepare("INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_nuevos, ip_address) VALUES ('usuarios', 'INSERT', ?, ?, ?)");
+                            $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+                            $datos = json_encode(['intento' => 'sesion_fallida', 'motivo' => 'credenciales_incorrectas']);
+                            $stmt_auditoria->bind_param("sss", $cedula, $datos, $ip);
+                            $stmt_auditoria->execute();
+                            $stmt_auditoria->close();
                         }
                     }
                 } else {
                     $mensaje = "Cédula o contraseña incorrectas";
                     $tipo_mensaje = "error";
                     
-                    // Registrar intento fallido en bitácora
+                    // Registrar intento fallido en auditoria
                     if ($conn) {
-                        $stmt_bitacora = $conn->prepare("INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle) VALUES (?, 'Consulta', 'usuarios', ?, 'Intento de inicio de sesión fallido - usuario no encontrado')");
-                        $stmt_bitacora->bind_param("ss", $cedula, $cedula);
-                        $stmt_bitacora->execute();
-                        $stmt_bitacora->close();
+                        $stmt_auditoria = $conn->prepare("INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_nuevos, ip_address) VALUES ('usuarios', 'INSERT', ?, ?, ?)");
+                        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+                        $datos = json_encode(['intento' => 'sesion_fallida', 'motivo' => 'usuario_no_encontrado']);
+                        $stmt_auditoria->bind_param("sss", $cedula, $datos, $ip);
+                        $stmt_auditoria->execute();
+                        $stmt_auditoria->close();
                     }
                 }
                 
@@ -214,16 +224,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- Botón de inicio de sesión -->
-                <button type="submit" class="modern-login-button" style="font-weight: 700;">Iniciar Sesión</button>
+                <button type="submit" class="modern-login-button" style="font-weight: 700; background: linear-gradient(90deg, #ffc400 0%, #ff9900 100%);">Iniciar Sesión</button>
             </form>
 
             <!-- Enlace para recuperar contraseña -->
             <div class="text-center mt-3">
-                <a href="recuperar_contraseña.php" style="color: #0d6efd; text-decoration: none; font-size: 14px; font-weight: 300;">
+                <a href="recuperar_contraseña.php" style="color: #ff6600; text-decoration: none; font-size: 14px; font-weight: 300;">
                     ¿Olvidó su contraseña?
                 </a>
                 <br>    
-                <a href="index.php" style="color: #0d6efd; text-decoration: none; font-size: 14px; font-weight: 300;">
+                <a href="index.php" style="color: #ff6600; text-decoration: none; font-size: 14px; font-weight: 300;">
                     Volver al Inicio
                 </a>
             </div>

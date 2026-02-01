@@ -7,7 +7,7 @@ $mensaje_error = '';
 $mensaje_exito = '';
 
 // Obtener datos del usuario
-$query = "SELECT nombre, apellido, email, rol, activo FROM usuarios WHERE cedula = ?";
+$query = "SELECT nombres, email, rol, activo FROM usuarios WHERE cedula = ?";
 $stmt = $conn->prepare($query);
 $stmt->bind_param("s", $cedula);
 $stmt->execute();
@@ -17,12 +17,13 @@ if ($result->num_rows == 0) {
     $mensaje_error = "Usuario no encontrado.";
 } else {
     $usuario = $result->fetch_assoc();
+    // Agregar apellido desde la sesión o como vacío
+    $usuario['apellido'] = '';
 }
 $stmt->close();
 
 
-
-// Procesar formulario si se envió
+// Procesar formulario si se envío
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accion = $_POST['accion'] ?? '';
 
@@ -55,18 +56,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($errores)) {
             // Hashear y actualizar
             $hash_nuevo = password_hash($nueva_contrasena, PASSWORD_DEFAULT);
-            $update = "UPDATE usuarios SET clave_usuario = ? WHERE cedula = ?";
+            $update = "UPDATE usuarios SET password_hash = ? WHERE cedula = ?";
             $stmt_update = $conn->prepare($update);
             $stmt_update->bind_param("ss", $hash_nuevo, $cedula);
 
             if ($stmt_update->execute()) {
-                // Registrar en bitácora
-                $detalle = "Cambio de contraseña sin verificación de actual";
-                $bitacora = "INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle) VALUES (?, 'Edicion', 'usuarios', ?, ?)";
-                $stmt_bit = $conn->prepare($bitacora);
-                $stmt_bit->bind_param("sss", $cedula, $cedula, $detalle);
-                $stmt_bit->execute();
-                $stmt_bit->close();
+                // Registrar en auditoria
+                $detalle = "Cambio de contraseña";
+                $auditoria = "INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_nuevos, ip_address) VALUES ('usuarios', 'UPDATE', ?, ?, ?)";
+                $stmt_aud = $conn->prepare($auditoria);
+                $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+                $datos = json_encode(['password' => 'cambiado']);
+                $stmt_aud->bind_param("sss", $cedula, $datos, $ip);
+                $stmt_aud->execute();
+                $stmt_aud->close();
 
                 $mensaje_exito = "Contraseña actualizada correctamente.";
             } else {
@@ -106,13 +109,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_update->bind_param("ss", $nuevo_email, $cedula);
 
             if ($stmt_update->execute()) {
-                // Registrar en bitácora
-                $detalle = "Cambio de correo: {$usuario['email']} → {$nuevo_email}";
-                $bitacora = "INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle) VALUES (?, 'Edicion', 'usuarios', ?, ?)";
-                $stmt_bit = $conn->prepare($bitacora);
-                $stmt_bit->bind_param("sss", $cedula, $cedula, $detalle);
-                $stmt_bit->execute();
-                $stmt_bit->close();
+                // Registrar en auditoria
+                $detalle = "Cambio de correo: {$email_actual} → {$nuevo_email}";
+                $auditoria = "INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_anteriores, datos_nuevos, ip_address) VALUES ('usuarios', 'UPDATE', ?, ?, ?, ?)";
+                $stmt_aud = $conn->prepare($auditoria);
+                $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+                $datos_ant = json_encode(['email' => $email_actual]);
+                $datos_nue = json_encode(['email' => $nuevo_email]);
+                $stmt_aud->bind_param("sssss", $cedula, $datos_ant, $datos_nue, $ip);
+                $stmt_aud->execute();
+                $stmt_aud->close();
 
                 $_SESSION['usuario']['email'] = $nuevo_email;
                 $usuario['email'] = $nuevo_email;
@@ -152,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div style="display:flex; align-items:center; gap:30px; flex-wrap:wrap; padding:20px;">
                 <div>
                     <p style="margin:4px 0; color:white; text-shadow:0.1px 0.1px 10px black;"><strong>Usuario:</strong></p>
-                    <h2 style="margin:0; font-size:clamp(2rem, 8vw, 80px); color:white; font-weight:900; font-family:montserrat; text-shadow:0.1px 0.1px 10px black;"> <i class="zmdi zmdi-account"></i>   <?= htmlspecialchars($usuario['nombre'] . ' ' . $usuario['apellido']) ?></h2>
+                    <h2 style="margin:0; font-size:clamp(2rem, 8vw, 80px); color:white; font-weight:900; font-family:montserrat; text-shadow:0.1px 0.1px 10px black;"> <i class="zmdi zmdi-account"></i>   <?= htmlspecialchars($usuario['nombres'] . ' ' . $_SESSION['usuario']['apellido']) ?></h2>
                     <p style="margin:4px 0; color:white; text-shadow:0.1px 0.1px 10px black;">Cédula: <strong> <?= htmlspecialchars($cedula) ?> </strong></p>
                     <span style="background:white; color:black; padding:6px 12px; border-radius:6px; font-size:0.9rem; font-weight:800;">
                         <?= htmlspecialchars($usuario['rol']) ?>
@@ -184,31 +190,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </thead>
                     <tbody>
                         <tr>
-                            <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:green;">Nombre Completo</td>
+                            <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:#ff6600;">Nombre Completo</td>
                             <td data-label="Valor" style="padding:14px 15px; border-bottom:1px solid #eee; color:#333;">
-                                <?= htmlspecialchars($usuario['nombre'] . ' ' . $usuario['apellido']) ?>
+                                <?= htmlspecialchars($usuario['nombres'] . ' ' . $_SESSION['usuario']['apellido']) ?>
                             </td>
                         </tr>
                         <tr>
-                            <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:green;">Cédula</td>
+                            <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:#ff6600;">Cédula</td>
                             <td data-label="Valor" style="padding:14px 15px; border-bottom:1px solid #eee; color:#333;">
                                 <?= htmlspecialchars($cedula) ?>
                             </td>
                         </tr>
                         <tr>
-                            <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:green;">Correo Electrónico</td>
+                            <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:#ff6600;">Correo Electrónico</td>
                             <td data-label="Valor" style="padding:14px 15px; border-bottom:1px solid #eee; color:#333;" id="email-display">
                                 <?= htmlspecialchars($usuario['email']) ?>
                             </td>
                         </tr>
                         <tr>
-                            <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:green;">Rol</td>
+                            <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:#ff6600;">Rol</td>
                             <td data-label="Valor" style="padding:14px 15px; border-bottom:1px solid #eee; color:#333;">
                                 <?= htmlspecialchars($usuario['rol']) ?>
                             </td>
                         </tr>
                         <tr>
-                            <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:green;">Estado</td>
+                            <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:#ff6600;">Estado</td>
                             <td data-label="Valor" style="padding:14px 15px; border-bottom:1px solid #eee; color:#333;">
                                 <span class="status" style="background:<?= $usuario['activo'] ? '#d4edda' : '#f8d7da' ?>; color:<?= $usuario['activo'] ? '#155724' : '#721c24' ?>; padding:6px 12px; border-radius:4px; font-size:0.8rem; font-weight:600;">
                                     <?= $usuario['activo'] ? 'Activo' : 'Inactivo' ?>
@@ -275,11 +281,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <h2 class="section-title">Documentación</h2>
             <p style="color:#555; margin-bottom:20px;">Consulta el manual oficial para aprender a usar todas las funciones del sistema.</p>
             <div style="text-align:center;">
-                <a href="assets/manual_de_usuario.pdf" target="_blank" class="btn btn-primary" style="background-color:#009688; border:2px solid #009688; color:white; padding:12px 24px;">
+                <a href="assets/manual_de_usuario.pdf" target="_blank" class="btn btn-primary" style="background-color:#ff6600; border:2px solid #ff6600; color:white; padding:12px 24px;">
                     <i class="zmdi zmdi-file-text"></i> Manual de Usuario
                 </a>
 
-                <a href="assets/Manual de Requerimientos ERS_ Sistema INTI.pdf" target="_blank" class="btn btn-primary" style="background-color:#009688; border:2px solid #009688; color:white; padding:12px 24px;">
+                <a href="assets/Manual de Requerimientos ERS_ Sistema INTI.pdf" target="_blank" class="btn btn-primary" style="background-color:#ff6600; border:2px solid #ff6600; color:white; padding:12px 24px;">
                     <i class="zmdi zmdi-file-text"></i> Manual requerimientos
                 </a>
             </div>

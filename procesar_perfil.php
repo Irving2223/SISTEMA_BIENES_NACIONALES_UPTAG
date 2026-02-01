@@ -19,7 +19,7 @@ function redirigirConMensaje($mensaje, $tipo) {
 }
 
 // Obtener usuario actual
-$query = "SELECT clave_usuario, email FROM usuarios WHERE cedula = ?";
+$query = "SELECT password_hash, email FROM usuarios WHERE cedula = ?";
 $stmt = $conn->prepare($query);
 $stmt->bind_param("s", $cedula);
 $stmt->execute();
@@ -68,7 +68,7 @@ if ($accion === 'cambiar_correo') {
     $stmt->bind_param("ss", $nuevo_email, $cedula);
 
     if ($stmt->execute()) {
-        registrarBitacora($conn, $cedula, 'Edicion', 'usuarios', $cedula, "Cambio de correo: {$user['email']} → {$nuevo_email}");
+        registrarAuditoria($conn, $cedula, 'UPDATE', 'usuarios', json_encode(['email' => $email_actual]), json_encode(['email' => $nuevo_email]));
         $_SESSION['usuario']['email'] = $nuevo_email;
         redirigirConMensaje('Correo actualizado correctamente.', 'exito');
     } else {
@@ -97,18 +97,18 @@ elseif ($accion === 'cambiar_contrasena') {
     }
 
     // Verificar contraseña actual (usando password_verify)
-    if (!password_verify($actual, $user['clave_usuario'])) {
+    if (!password_verify($actual, $user['password_hash'])) {
         redirigirConMensaje('La contraseña actual es incorrecta.', 'error');
     }
 
     // Hashear y guardar nueva contraseña
     $hash = password_hash($nueva, PASSWORD_DEFAULT);
-    $update = "UPDATE usuarios SET clave_usuario = ? WHERE cedula = ?";
+    $update = "UPDATE usuarios SET password_hash = ? WHERE cedula = ?";
     $stmt = $conn->prepare($update);
     $stmt->bind_param("ss", $hash, $cedula);
 
     if ($stmt->execute()) {
-        registrarBitacora($conn, $cedula, 'Edicion', 'usuarios', $cedula, 'Cambio de contraseña');
+        registrarAuditoria($conn, $cedula, 'UPDATE', 'usuarios', null, json_encode(['password' => 'cambiado']));
         redirigirConMensaje('Contraseña actualizada correctamente.', 'exito');
     } else {
         redirigirConMensaje('Error al actualizar la contraseña.', 'error');
@@ -119,11 +119,12 @@ elseif ($accion === 'cambiar_contrasena') {
 // Acción no válida
 redirigirConMensaje('Acción no válida.', 'error');
 
-// Función auxiliar para bitácora
-function registrarBitacora($conn, $cedula_usuario, $accion, $tabla, $registro, $detalle) {
-    $sql = "INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle, fecha_accion) VALUES (?, ?, ?, ?, ?, NOW())";
+// Función auxiliar para auditoria
+function registrarAuditoria($conn, $cedula_usuario, $accion, $tabla, $datos_anteriores, $datos_nuevos) {
+    $sql = "INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_anteriores, datos_nuevos, ip_address, fecha_accion) VALUES (?, ?, ?, ?, ?, ?, NOW())";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sssss", $cedula_usuario, $accion, $tabla, $registro, $detalle);
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    $stmt->bind_param("ssssss", $tabla, $accion, $cedula_usuario, $datos_anteriores, $datos_nuevos, $ip);
     $stmt->execute();
     $stmt->close();
 }
