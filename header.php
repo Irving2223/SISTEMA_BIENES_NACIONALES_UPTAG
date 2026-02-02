@@ -35,7 +35,7 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 <!DOCTYPE html>
 <html lang="es">
 	<head>
-		<title>Sistema INTI</title>
+		<title>Sistema de Bienes Nacionales UPTAG</title>
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
 		<link rel="stylesheet" href="./css/main.css">
@@ -120,115 +120,56 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 </head>
 <body>
 	<!-- SideBar -->
-	<section class="full-box cover dashboard-sideBar custom-sidebar" style="background-image:url(./assets/img/sidebar/sidebar.webp);"> <!-- Barra lateral principal -->
-		<div class="full-box dashboard-sideBar-bg btn-menu-dashboard"></div> <!-- Fondo de la barra lateral, permite cerrar/abrir -->
-		<div class="full-box dashboard-sideBar-ct"> <!-- Contenedor del contenido de la barra lateral -->
+	<section class="full-box cover dashboard-sideBar custom-sidebar" style="background-image:url(./assets/img/sidebar/sidebar.webp);">
+		<div class="full-box dashboard-sideBar-bg btn-menu-dashboard"></div>
+		<div class="full-box dashboard-sideBar-ct">
 
 			<!--SideBar Title -->
 			<div class="full-box text-uppercase text-center text-titles dashboard-sideBar-title">
 			</div>
+
 			<!-- SideBar User info -->
-			<div class="full-box dashboard-sideBar-"> <!-- Información del usuario -->
+			<div class="full-box dashboard-sideBar-">
 				<figure class="full-box">
-					
 					<img src="assets/img/LOGO INTI.png" alt="" style="pointer-events: none; width:175px; left:35px; bottom:30px; position:relative;"> 
-
 				</figure>
-
 			</div>
+
 			<!-- SideBar Menu -->
-			<ul class="list-unstyled full-box dashboard-sideBar-Menu" style="font-family:montserrat;"> <!-- Menú principal de la barra lateral -->
-				<li>
-					<a href="home.php">
-						<i class="zmdi zmdi-view-dashboard zmdi-hc-fw"></i> Inicio <!-- Enlace al dashboard -->
-					</a>
-				</li>
-
-				<li>
-					<a href="buscar.php">
-						<i class="zmdi zmdi-search"></i> Búsqueda <!-- Enlace a la busqueda -->
-					</a>
-				</li>
-
-				
-
+			<ul class="list-unstyled full-box dashboard-sideBar-Menu" style="font-family:montserrat;">
+				<li><a href="home.php"><i class="zmdi zmdi-view-dashboard zmdi-hc-fw"></i> Inicio</a></li>
+				<li><a href="buscar.php"><i class="zmdi zmdi-search"></i> Búsqueda de Bienes</a></li>
 				<li>
 					<a href="#!" class="btn-sideBar-SubMenu">
-						<i class="zmdi zmdi-file-text"></i> Formulario <i class="zmdi zmdi-caret-down pull-right"></i> <!-- Menú desplegable de formularios -->
+						<i class="zmdi zmdi-file-text"></i> Gestión de Bienes <i class="zmdi zmdi-caret-down pull-right"></i>
 					</a>
 					<ul class="list-unstyled full-box">
-						<li>
-							<a href="registrar_solicitante.php"><i class="zmdi zmdi-account-add"></i> Registrar Solicitante</a> <!-- Opción para registrar -->
-						</li>
-
-						<li>
-							<a href="registrar_solicitud.php"><i class="zmdi zmdi-folder-person"></i> Registrar Solicitud</a> <!-- Opción para registrar -->
-						</li>
-
-						<li>
-							<a href="editar_solicitante.php"><i class="zmdi zmdi-edit"></i> Editar Solicitante</a> <!-- Opción para editar Solicitante-->
-						</li>
-
-				
-						<li>
-							<a href="editar_solicitud.php"><i class="zmdi zmdi-comment-edit"></i> Editar Solicitud</a> <!-- Opción para editar -->
-						</li>
-
-						<li>
-							<a href="registrar_sector.php"><i class="zmdi zmdi-pin"></i> Gestión de Sectores</a> <!-- Opción para editar -->
-						</li>
-
+						<li><a href="registrar_bien.php"><i class="zmdi zmdi-plus-circle"></i> Registrar Bien</a></li>
+						<li><a href="registrar_ubicacion.php"><i class="zmdi zmdi-pin"></i> Registrar Ubicación</a></li>
+						<li><a href="registrar_movimiento.php"><i class="zmdi zmdi-swap"></i> Registrar Movimiento</a></li>
+						<li><a href="desincorporar_bien.php"><i class="zmdi zmdi-delete"></i> Desincorporar Bien</a></li>
 					</ul>
 				</li>
-
 				<li>
 					<a href="#!" class="btn-sideBar-SubMenu">
-						<i class="zmdi zmdi-border-color"></i> Reportes <i class="zmdi zmdi-caret-down pull-right"></i> <!-- Menú desplegable de reportes -->
+						<i class="zmdi zmdi-border-color"></i> Reportes <i class="zmdi zmdi-caret-down pull-right"></i>
 					</a>
 					<ul class="list-unstyled full-box">
-						<li>
-							<a href="reporte_solicitudes.php"><i class="zmdi zmdi-file-plus"></i> Reporte de Solicitudes</a> <!-- Opción para reporte de formulario -->
-						</li>
-
-						<li>
-							<a href="reporte_superficie.php"><i class="zmdi zmdi-assignment-o"></i> Reporte de Superficie</a> <!-- Opción para reporte de superficie -->
-						</li>
-
-						<li>
-							<a href="reporte_solicitantes.php"><i class="zmdi zmdi-accounts-list"></i> Reporte de Solicitantes</a>
-						</li>
-
+						<li><a href="generar_reporte_inventario.php"><i class="zmdi zmdi-assignment"></i> Inventario General</a></li>
+						<li><a href="generar_reporte_movimientos.php"><i class="zmdi zmdi-swap"></i> Reporte de Movimientos</a></li>
+                        <li><a href="generar_reporte_ubicaciones.php"><i class="zmdi zmdi-pin"></i> Reporte por Ubicación</a></li>
 					</ul>
 				</li>
-
-                <!-- Opción de Configuración solo visible para administradores -->
-                <?php if ($es_administrador): ?>
-                    <li>
-                        <a href="configuracion.php">
-                            <i class="zmdi zmdi-settings"></i> Configuración <!-- Opción para configuración -->
-                        </a>
-                    </li>
-                <?php endif; ?>
-    
-                <li>
-                    
-                                        <a href="salir.php">
-                                            <i class="zmdi zmdi-power zmdi-hc-fw"></i>Cerrar sesión <!-- Opción para cerrar sesión -->
-                                        </a>
-                                    </li>
+				<?php if ($es_administrador): ?>
+					<li><a href="configuracion.php"><i class="zmdi zmdi-settings"></i> Configuración</a></li>
+				<?php endif; ?>
+				<li><a href="salir.php"><i class="zmdi zmdi-power zmdi-hc-fw"></i>Cerrar sesión</a></li>
+				<?php if (!$es_administrador): ?>
+					<li><a href="#" style="opacity:0;"><i class="zmdi zmdi-settings"></i></a></li>
+				<?php endif; ?>
 			</ul>
 
-			<ul class="list-unstyled full-box dashboard-sideBar-Menu" style=" top:50px; position:relative;">
-				
-                <!-- Espaciado condicional para mantener la alineación -->
-                <?php if (!$es_administrador): ?>
-                    <li>
-                        <a href="#" style="opacity:0;">
-                            <i class="zmdi zmdi-settings"></i> 
-                        </a>
-                    </li>
-                <?php endif; ?>
-				
+			<ul class="list-unstyled full-box dashboard-sideBar-Menu" style="top:50px; position:relative;">
 			</ul>
 			
 		</div>
@@ -244,7 +185,7 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 	<section class="full-box dashboard-contentPage" style="background-color:#f5f5f5;" >
 
 		<!-- NavBar -->
-		<nav class="full-box dashboard-Navbar" style="background-image:url(./assets/img/sidebar/sidebar.webp); height:60px;"> <!-- Barra de navegación principal -->
+		<nav class="full-box dashboard-Navbar" style="background:  linear-gradient(90deg,rgba(219, 155, 35, 1) 0%, rgba(255, 145, 0, 1) 50%, rgba(252, 203, 69, 1) 100%)"> <!-- Barra de navegación principal -->
 			<ul class="full-box list-unstyled text-right">
 				<li class="pull-left" >
 				<a href="#!" style="height:60px;" class="btn-menu-dashboard"><i class="zmdi zmdi-more-horiz"></i></a>

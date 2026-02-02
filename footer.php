@@ -46,8 +46,9 @@ datos de la licencia
 */
 </style>
 <div class="footer-inti">
-<a href="https://creativecommons.org" target="_blank">Sistema de Información para la Gestión Administrativa del Departamento de Atención al Campesino del Instituto Nacional de Tierras (INTI)</a> © 2025 by <a href="https://creativecommons.org" target="_blank">Irving Coello, Richard Molina, Dixon Véliz y Brayan Pirona</a> is licensed under <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank">CC BY-NC-ND 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nd.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;">
+<a href="https://creativecommons.org" target="_blank">Sistema de Gestión de Inventarios para la Oficina de Bienes Nacionales de la Universidad Politécnica Territorial de Falcón Alonso Gamero</a> © 2026 by <a href="https://creativecommons.org" target="_blank">Humberto Delgado, Cristian Alastre y Enyerberth Chacón</a> is licensed under <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank">CC BY-NC-ND 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nd.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;">
 </div>
+
 
 </body>
 </html>

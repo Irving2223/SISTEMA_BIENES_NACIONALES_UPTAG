@@ -24,7 +24,7 @@ if (isset($_POST['exportar_datos'])) {
 
     include("conexion.php");
     
-    $nombre_db = 'BD_INTI'; // Nombre de tu base de datos
+    $nombre_db = 'bienes_nacionales_uptag'; // Nombre de tu base de datos
     $fecha = date('Y-m-d_H-i-s');
     $nombre_archivo = "Copia {$nombre_db}_{$fecha}.sql";
     
@@ -87,7 +87,7 @@ if (isset($_POST['exportar_datos'])) {
 <div class="container <?php echo $clase_contenedor; ?>">
 
     <!-- Título Principal -->
-    <h1 style="font-weight:900; font-family:montserrat; color:green; padding:20px; text-align:left; font-size:40px;"><i class="zmdi zmdi-settings"></i> Configuración  <span style="font-weight:700; color:black;">del sistema</span></h1>
+    <h1 style="font-weight:900; font-family:montserrat; color:#ff6600; padding:20px; text-align:left; font-size:40px;"><i class="zmdi zmdi-settings"></i> Configuración  <span style="font-weight:700; color:black;">del sistema</span></h1>
 
     <!-- 1. Gestión de Usuarios (solo superusuario) -->
     <div class="section-container superuser-only">
@@ -144,7 +144,7 @@ if (isset($_POST['exportar_datos'])) {
             <div class="field-col">
                 <label class="field-label">Contacto a soporte Técnico del sistema</label>
                 <form method="POST" action="">
-                    <button  class="btn btn-primary"><a href="https://wa.me/584121028791">Soporte Técnico</a></button>
+                    <button  class="btn btn-primary"><a href="https://wa.me/584164646323">Soporte Técnico</a></button>
                 </form>
             </div>
         </div>

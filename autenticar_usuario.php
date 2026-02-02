@@ -27,7 +27,20 @@ if (empty($username) || empty($password)) {
 }
 
 // Consulta segura con MySQLi
-$stmt = $conn->prepare("SELECT cedula, nombre, apellido, clave_usuario, rol, activo FROM usuarios WHERE cedula = ? AND activo = 1");
+// Verificar estructura de la tabla para manejar diferentes nombres de columnas
+// Verificamos si existe la columna 'nombres' para determinar la estructura
+$check_columns = $conn->prepare("SHOW COLUMNS FROM usuarios LIKE 'nombres'");
+$check_columns->execute();
+$has_nombres = $check_columns->get_result()->num_rows > 0;
+$check_columns->close();
+
+if ($has_nombres) {
+    // Nueva estructura: nombres, apellidos
+    $stmt = $conn->prepare("SELECT cedula, nombres, apellidos, clave_usuario, rol, activo FROM usuarios WHERE cedula = ? AND activo = 1");
+} else {
+    // Estructura antigua: nombre, apellido
+    $stmt = $conn->prepare("SELECT cedula, nombre, apellido, clave_usuario, rol, activo FROM usuarios WHERE cedula = ? AND activo = 1");
+}
 if (!$stmt) {
     error_log("Error en preparación de consulta: " . $conn->error);
     header('Location: Loggin.php?error=Error+interno+del+sistema');
@@ -97,10 +110,15 @@ if ($user['activo'] != 1) {
 session_destroy(); // Limpia cualquier sesión anterior
 session_start();   // Reinicia sesión
 
+// Determinar nombre y apellido según la estructura
+$nombre = $has_nombres ? ($user['nombres'] ?? '') : ($user['nombre'] ?? '');
+$apellido = $has_nombres ? ($user['apellidos'] ?? '') : ($user['apellido'] ?? '');
+$apellido = trim($apellido);
+
 $_SESSION['usuario'] = [
     'cedula' => $user['cedula'],
-    'nombre' => $user['nombre'],
-    'apellido' => $user['apellido'],
+    'nombre' => $nombre,
+    'apellido' => $apellido,
     'rol' => $user['rol'],
     'loggeado' => true,
     'ultimo_acceso' => time()

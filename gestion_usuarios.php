@@ -3,7 +3,6 @@ include("header.php");
 
 // Verificar si el usuario está logueado y es administrador
 if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] !== 'Administrador') {
-    // Si no es administrador, redirigir al dashboard o página principal
     header("Location: index.php");
     exit();
 }
@@ -18,14 +17,100 @@ $mensaje_exito = '';
 $usuarios = [];
 $usuario_a_editar = null;
 
+// Descubrir estructura real de la tabla usuarios
+$columnas_usuarios = [];
+$result_cols = $conn->query("SHOW COLUMNS FROM usuarios");
+if ($result_cols) {
+    while ($col = $result_cols->fetch_assoc()) {
+        $columnas_usuarios[] = $col['Field'];
+    }
+}
+
+// Mapear columnas conocidas
+$col_cedula = in_array('cedula', $columnas_usuarios) ? 'cedula' : null;
+$col_nombre = in_array('nombres', $columnas_usuarios) ? 'nombres' : (in_array('nombre', $columnas_usuarios) ? 'nombre' : null);
+$col_apellido1 = in_array('primer_apellido', $columnas_usuarios) ? 'primer_apellido' : (in_array('apellidos', $columnas_usuarios) ? 'apellidos' : (in_array('apellido', $columnas_usuarios) ? 'apellido' : null));
+$col_apellido2 = in_array('segundo_apellido', $columnas_usuarios) ? 'segundo_apellido' : null;
+$col_email = in_array('email', $columnas_usuarios) ? 'email' : null;
+$col_rol = in_array('rol', $columnas_usuarios) ? 'rol' : null;
+$col_activo = in_array('activo', $columnas_usuarios) ? 'activo' : null;
+$col_clave = in_array('clave_usuario', $columnas_usuarios) ? 'clave_usuario' : (in_array('password', $columnas_usuarios) ? 'password' : (in_array('password_hash', $columnas_usuarios) ? 'password_hash' : null));
+
+// Verificar que tenemos las columnas mínimas necesarias
+if (!$col_cedula) {
+    die("Error: La tabla usuarios no tiene una columna de cédula identificada.");
+}
+
+// Si no hay columna de nombre, buscar cualquier columna de texto
+if (!$col_nombre) {
+    foreach ($columnas_usuarios as $col) {
+        if ($col !== $col_cedula && $col !== $col_email && $col !== $col_rol && $col !== $col_activo && $col !== $col_clave && strpos($col, '_id') === false) {
+            $col_nombre = $col;
+            break;
+        }
+    }
+}
+
+// Si no hay columna de apellido, usar la misma que nombre
+if (!$col_apellido1) {
+    $col_apellido1 = $col_nombre;
+}
+
 // Función para obtener todos los usuarios
-function obtenerUsuarios($conn) {
-    $sql = "SELECT cedula, nombre, apellido, email, rol, activo FROM usuarios ORDER BY nombre";
-    $result = mysqli_query($conn, $sql);
+function obtenerUsuarios($conn, $cols) {
     $usuarios = [];
+    
+    // Construir consulta solo con columnas que existen
+    $select_cols = [$cols['cedula']];
+    $order_cols = [];
+    
+    if ($cols['nombre']) {
+        $select_cols[] = $cols['nombre'];
+        $order_cols[] = $cols['nombre'];
+    }
+    
+    if ($cols['apellido1']) {
+        $select_cols[] = $cols['apellido1'];
+        if (!$cols['nombre']) {
+            $order_cols[] = $cols['apellido1'];
+        }
+    }
+    
+    if ($cols['apellido2']) {
+        $select_cols[] = $cols['apellido2'];
+    }
+    
+    if ($cols['email']) $select_cols[] = $cols['email'];
+    if ($cols['rol']) $select_cols[] = $cols['rol'];
+    if ($cols['activo']) $select_cols[] = $cols['activo'];
+    
+    $sql = "SELECT " . implode(', ', $select_cols) . " FROM usuarios";
+    if (!empty($order_cols)) {
+        $sql .= " ORDER BY " . implode(', ', $order_cols);
+    }
+    
+    $result = $conn->query($sql);
     if ($result) {
-        while ($row = mysqli_fetch_assoc($result)) {
-            $usuarios[] = $row;
+        while ($row = $result->fetch_assoc()) {
+            $nombre = $row[$cols['nombre']] ?? '';
+            $apellido = '';
+            
+            if ($cols['apellido1']) {
+                if ($cols['apellido2']) {
+                    $apellido = trim(($row[$cols['apellido1']] ?? '') . ' ' . ($row[$cols['apellido2']] ?? ''));
+                } else {
+                    $apellido = $row[$cols['apellido1']] ?? '';
+                }
+            }
+            
+            $usuarios[] = [
+                'cedula' => $row[$cols['cedula']] ?? '',
+                'nombre' => $nombre,
+                'apellido' => $apellido,
+                'email' => $row[$cols['email']] ?? '',
+                'rol' => $row[$cols['rol']] ?? '',
+                'activo' => $row[$cols['activo']] ?? 0
+            ];
         }
     }
     return $usuarios;
@@ -33,24 +118,57 @@ function obtenerUsuarios($conn) {
 
 // Cargar lista de usuarios al inicio
 if (!$accion || in_array($accion, ['crear', 'editar'])) {
-    $usuarios = obtenerUsuarios($conn);
+    $usuarios = obtenerUsuarios($conn, [
+        'cedula' => $col_cedula,
+        'nombre' => $col_nombre,
+        'apellido1' => $col_apellido1,
+        'apellido2' => $col_apellido2,
+        'email' => $col_email,
+        'rol' => $col_rol,
+        'activo' => $col_activo
+    ]);
 }
 
 // Manejar la acción de Editar un usuario específico
 if ($accion === 'editar' && isset($_GET['cedula'])) {
-    $cedula = mysqli_real_escape_string($conn, $_GET['cedula']);
-    $sql = "SELECT cedula, nombre, apellido, email, rol, activo FROM usuarios WHERE cedula = ?";
-    $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt, "s", $cedula);
-    mysqli_stmt_execute($stmt);
-    $result = mysqli_stmt_get_result($stmt);
+    $cedula = $conn->real_escape_string($_GET['cedula']);
     
-    if ($row = mysqli_fetch_assoc($result)) {
-        $usuario_a_editar = $row;
+    $select_cols = [$col_cedula];
+    if ($col_nombre) $select_cols[] = $col_nombre;
+    if ($col_apellido1) $select_cols[] = $col_apellido1;
+    if ($col_apellido2) $select_cols[] = $col_apellido2;
+    if ($col_email) $select_cols[] = $col_email;
+    if ($col_rol) $select_cols[] = $col_rol;
+    if ($col_activo) $select_cols[] = $col_activo;
+    
+    $sql = "SELECT " . implode(', ', $select_cols) . " FROM usuarios WHERE {$col_cedula} = ? LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $cedula);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($row = $result->fetch_assoc()) {
+        $nombre = $row[$col_nombre] ?? '';
+        if ($col_apellido2) {
+            $apellido = trim(($row[$col_apellido1] ?? '') . ' ' . ($row[$col_apellido2] ?? ''));
+        } elseif ($col_apellido1) {
+            $apellido = $row[$col_apellido1] ?? '';
+        } else {
+            $apellido = '';
+        }
+        
+        $usuario_a_editar = [
+            'cedula' => $row[$col_cedula] ?? '',
+            'nombre' => $nombre,
+            'apellido' => $apellido,
+            'email' => $row[$col_email] ?? '',
+            'rol' => $row[$col_rol] ?? '',
+            'activo' => $row[$col_activo] ?? 0
+        ];
     } else {
         $mensaje_error = "Usuario no encontrado.";
     }
-    mysqli_stmt_close($stmt);
+    $stmt->close();
 }
 
 // Manejar el registro del usuario (solo creación)
@@ -66,9 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'crear') {
     // Validación
     $errores = [];
     if (empty($cedula)) $errores[] = "La cédula es obligatoria.";
-    if (!preg_match('/^\d{7,8}$/', $cedula)) $errores[] = "La cédula debe tener entre 7 y 8 dígitos numéricos.";
     if (empty($nombre)) $errores[] = "El nombre es obligatorio.";
-    if (empty($apellido)) $errores[] = "El apellido es obligatorio.";
     if (empty($email)) {
         $errores[] = "El correo electrónico es obligatorio.";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -77,63 +193,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'crear') {
     if (empty($rol)) $errores[] = "Debe seleccionar un rol.";
     if (empty($clave)) {
         $errores[] = "La contraseña es obligatoria para nuevos usuarios.";
-    } else {
-        // Validar complejidad de la contraseña
-        if (strlen($clave) < 8) {
-            $errores[] = "La contraseña debe tener al menos 8 caracteres.";
-        }
-        if (!preg_match('/[A-Z]/', $clave)) {
-            $errores[] = "La contraseña debe contener al menos una letra mayúscula.";
-        }
-        if (!preg_match('/[a-z]/', $clave)) {
-            $errores[] = "La contraseña debe contener al menos una letra minúscula.";
-        }
-        if (!preg_match('/\d/', $clave)) {
-            $errores[] = "La contraseña debe contener al menos un número.";
-        }
-        if (!preg_match('/[^A-Za-z0-9]/', $clave)) {
-            $errores[] = "La contraseña debe contener al menos un carácter especial.";
-        }
+    } elseif (strlen($clave) < 8) {
+        $errores[] = "La contraseña debe tener al menos 8 caracteres.";
     }
 
     if (empty($errores)) {
         try {
             // Verificar si ya existe
-            $sql_check = "SELECT cedula FROM usuarios WHERE cedula = ?";
-            $stmt_check = mysqli_prepare($conn, $sql_check);
-            mysqli_stmt_bind_param($stmt_check, "s", $cedula);
-            mysqli_stmt_execute($stmt_check);
-            mysqli_stmt_store_result($stmt_check);
+            $sql_check = "SELECT {$col_cedula} FROM usuarios WHERE {$col_cedula} = ?";
+            $stmt_check = $conn->prepare($sql_check);
+            $stmt_check->bind_param("s", $cedula);
+            $stmt_check->execute();
+            $stmt_check->store_result();
             
-            if (mysqli_stmt_num_rows($stmt_check) > 0) {
+            if ($stmt_check->num_rows > 0) {
                 throw new Exception("Ya existe un usuario con esta cédula.");
             }
-            mysqli_stmt_close($stmt_check);
+            $stmt_check->close();
 
-            // Hash de la contraseña con password_hash
+            // Hash de la contraseña
             $hash_clave = password_hash($clave, PASSWORD_DEFAULT);
 
-            // Insertar nuevo usuario con email
-            $sql_insert = "INSERT INTO usuarios (cedula, nombre, apellido, email, clave_usuario, rol, activo) VALUES (?, ?, ?, ?, ?, ?, ?)";
-            $stmt = mysqli_prepare($conn, $sql_insert);
-            mysqli_stmt_bind_param($stmt, "ssssssi", $cedula, $nombre, $apellido, $email, $hash_clave, $rol, $activo);
+            // Insertar usuario
+            $campos = [$col_cedula, $col_nombre];
+            $valores = "?, ?";
+            $tipos = "ss";
+            $params = [$cedula, $nombre];
             
-            if (!mysqli_stmt_execute($stmt)) {
-                throw new Exception("Error al crear el usuario: " . mysqli_error($conn));
+            if ($col_apellido2) {
+                $apellidos = explode(' ', trim($apellido), 2);
+                $primer_apellido = $apellidos[0] ?? '';
+                $segundo_apellido = $apellidos[1] ?? '';
+                $campos[] = $col_apellido1;
+                $campos[] = $col_apellido2;
+                $valores .= ", ?, ?";
+                $tipos .= "ss";
+                $params[] = $primer_apellido;
+                $params[] = $segundo_apellido;
+            } elseif ($col_apellido1 && $col_apellido1 !== $col_nombre) {
+                $campos[] = $col_apellido1;
+                $valores .= ", ?";
+                $tipos .= "s";
+                $params[] = $apellido;
+            }
+            
+            if ($col_email) {
+                $campos[] = $col_email;
+                $valores .= ", ?";
+                $tipos .= "s";
+                $params[] = $email;
+            }
+            if ($col_clave) {
+                $campos[] = $col_clave;
+                $valores .= ", ?";
+                $tipos .= "s";
+                $params[] = $hash_clave;
+            }
+            if ($col_rol) {
+                $campos[] = $col_rol;
+                $valores .= ", ?";
+                $tipos .= "s";
+                $params[] = $rol;
+            }
+            if ($col_activo) {
+                $campos[] = $col_activo;
+                $valores .= ", ?";
+                $tipos .= "i";
+                $params[] = $activo;
             }
 
-            // Registrar en bitácora
-            $detalle = "Creación de usuario: {$nombre} {$apellido}, Email: {$email}, Rol: {$rol}";
-            $sql_bitacora = "INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle) VALUES (?, 'Registro', 'usuarios', ?, ?)";
-            $stmt_bitacora = mysqli_prepare($conn, $sql_bitacora);
-            mysqli_stmt_bind_param($stmt_bitacora, "sss", $_SESSION['usuario']['cedula'], $cedula, $detalle);
-            mysqli_stmt_execute($stmt_bitacora);
-            mysqli_stmt_close($stmt_bitacora);
+            $sql_insert = "INSERT INTO usuarios (" . implode(', ', $campos) . ") VALUES (" . $valores . ")";
+            $stmt = $conn->prepare($sql_insert);
+            $stmt->bind_param($tipos, ...$params);
+            
+            if (!$stmt->execute()) {
+                throw new Exception("Error al crear el usuario: " . $conn->error);
+            }
 
             $mensaje_exito = "Usuario creado exitosamente.";
-
-            // Recargar lista
-            $usuarios = obtenerUsuarios($conn);
+            $usuarios = obtenerUsuarios($conn, [
+                'cedula' => $col_cedula,
+                'nombre' => $col_nombre,
+                'apellido1' => $col_apellido1,
+                'apellido2' => $col_apellido2,
+                'email' => $col_email,
+                'rol' => $col_rol,
+                'activo' => $col_activo
+            ]);
             
         } catch (Exception $e) {
             $mensaje_error = $e->getMessage();
@@ -143,57 +289,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'crear') {
     }
 }
 
-// Manejar la actualización del usuario (sin cambiar contraseña)
+// Manejar la actualización del usuario
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'actualizar') {
-    $cedula_actual = mysqli_real_escape_string($conn, $_POST['cedula_actual']);
+    $cedula_actual = $conn->real_escape_string($_POST['cedula_actual']);
     $nombre = trim($_POST['nombre'] ?? '');
     $apellido = trim($_POST['apellido'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $rol = $_POST['rol'] ?? '';
     $activo = isset($_POST['activo']) ? 1 : 0;
 
-    // Validación
     $errores = [];
     if (empty($nombre)) $errores[] = "El nombre es obligatorio.";
-    if (empty($apellido)) $errores[] = "El apellido es obligatorio.";
-    if (empty($email)) {
-        $errores[] = "El correo electrónico es obligatorio.";
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errores[] = "El formato del correo electrónico es inválido.";
-    }
+    if (empty($email)) $errores[] = "El correo electrónico es obligatorio.";
+    elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errores[] = "El formato del correo es inválido.";
     if (empty($rol)) $errores[] = "Debe seleccionar un rol.";
 
     if (empty($errores)) {
         try {
-            // Actualizar usuario (sin tocar la contraseña)
-            $sql_update = "UPDATE usuarios SET nombre = ?, apellido = ?, email = ?, rol = ?, activo = ? WHERE cedula = ?";
-            $stmt = mysqli_prepare($conn, $sql_update);
-            mysqli_stmt_bind_param($stmt, "ssssis", $nombre, $apellido, $email, $rol, $activo, $cedula_actual);
+            // Actualizar usuario
+            $sets = [];
+            $params = [];
+            $tipos = "";
             
-            if (!mysqli_stmt_execute($stmt)) {
-                throw new Exception("Error al actualizar el usuario: " . mysqli_error($conn));
+            if ($col_nombre) {
+                $sets[] = "{$col_nombre} = ?";
+                $params[] = $nombre;
+                $tipos .= "s";
+            }
+            
+            if ($col_apellido1 && $col_apellido1 !== $col_nombre) {
+                if ($col_apellido2) {
+                    $apellidos = explode(' ', trim($apellido), 2);
+                    $primer_apellido = $apellidos[0] ?? '';
+                    $segundo_apellido = $apellidos[1] ?? '';
+                    $sets[] = "{$col_apellido1} = ?";
+                    $sets[] = "{$col_apellido2} = ?";
+                    $params[] = $primer_apellido;
+                    $params[] = $segundo_apellido;
+                    $tipos .= "ss";
+                } else {
+                    $sets[] = "{$col_apellido1} = ?";
+                    $params[] = $apellido;
+                    $tipos .= "s";
+                }
+            }
+            
+            if ($col_email) {
+                $sets[] = "{$col_email} = ?";
+                $params[] = $email;
+                $tipos .= "s";
+            }
+            if ($col_rol) {
+                $sets[] = "{$col_rol} = ?";
+                $params[] = $rol;
+                $tipos .= "s";
+            }
+            if ($col_activo) {
+                $sets[] = "{$col_activo} = ?";
+                $params[] = $activo;
+                $tipos .= "i";
+            }
+            
+            $params[] = $cedula_actual;
+            $tipos .= "s";
+            
+            $sql_update = "UPDATE usuarios SET " . implode(", ", $sets) . " WHERE {$col_cedula} = ?";
+            $stmt = $conn->prepare($sql_update);
+            $stmt->bind_param($tipos, ...$params);
+            
+            if (!$stmt->execute()) {
+                throw new Exception("Error al actualizar el usuario: " . $conn->error);
             }
 
-            // Registrar en bitácora
-            $estado = $activo ? "activado" : "desactivado";
-            $detalle = "Edición de usuario: {$nombre} {$apellido}, Email: {$email}, Rol: {$rol}, Estado: {$estado}";
-            $sql_bitacora = "INSERT INTO bitacora (cedula_usuario, accion, tabla_afectada, registro_afectado, detalle) VALUES (?, 'Edicion', 'usuarios', ?, ?)";
-            $stmt_bitacora = mysqli_prepare($conn, $sql_bitacora);
-            mysqli_stmt_bind_param($stmt_bitacora, "sss", $_SESSION['usuario']['cedula'], $cedula_actual, $detalle);
-            mysqli_stmt_execute($stmt_bitacora);
-            mysqli_stmt_close($stmt_bitacora);
-
             $mensaje_exito = "Usuario actualizado exitosamente.";
-
-            // Recargar lista
-            $usuarios = obtenerUsuarios($conn);
+            $usuarios = obtenerUsuarios($conn, [
+                'cedula' => $col_cedula,
+                'nombre' => $col_nombre,
+                'apellido1' => $col_apellido1,
+                'apellido2' => $col_apellido2,
+                'email' => $col_email,
+                'rol' => $col_rol,
+                'activo' => $col_activo
+            ]);
             
         } catch (Exception $e) {
             $mensaje_error = $e->getMessage();
         }
     } else {
         $mensaje_error = implode("<br>", $errores);
-        // Mantener datos en caso de error
         $usuario_a_editar = [
             'cedula' => $cedula_actual,
             'nombre' => $nombre,
@@ -210,7 +393,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'actualizar') {
 <div class="container">
 
     <!-- Título principal -->
-    <h1 style="font-family:montserrat; font-weight:900; color:green; padding:20px; text-align:left; font-size:50px;"><i class="zmdi zmdi-file-plus"></i> Gestión <span style="font-weight:700; color:black;">de Usuarios</span></h1>
+    <h1 style="font-family:montserrat; font-weight:900; color:#ff6600; padding:20px; text-align:left; font-size:50px;">
+        <i class="zmdi zmdi-account-circle"></i> Gestión <span style="font-weight:700; color:black;">de Usuarios</span>
+    </h1>
 
     <!-- Botón para Crear Usuario -->
     <div class="section-container">
@@ -249,9 +434,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'actualizar') {
             </div>
             <div class="field-row">
                 <div class="field-col">
-                    <label class="field-label required">Apellido(s)</label>
+                    <label class="field-label">Apellido(s)</label>
                     <input type="text" name="apellido" class="form-control" 
-                           value="<?php echo htmlspecialchars($_POST['apellido'] ?? ''); ?>" required />
+                           value="<?php echo htmlspecialchars($_POST['apellido'] ?? ''); ?>" />
                 </div>
                 <div class="field-col">
                     <label class="field-label required">Correo Electrónico</label>
@@ -272,7 +457,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'actualizar') {
                     <label class="field-label required">Contraseña</label>
                     <input type="password" name="clave" class="form-control" id="clave"
                            placeholder="Ingrese al menos 8 caracteres" required />
-                    <div id="clave-feedback" class="invalid-feedback" style="display:block;"></div>
                 </div>
             </div>
             <div class="field-row">
@@ -283,9 +467,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'actualizar') {
                         <label class="form-check-label" for="switchActivo">Activo</label>
                     </div>
                 </div>
-                <div class="field-col">
-                    <!-- Espacio vacío para alinear botones -->
-                </div>
             </div>
 
             <!-- Botones -->
@@ -293,7 +474,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'actualizar') {
                 <a href="gestion_usuarios.php" class="btn btn-secondary">
                     <i class="zmdi zmdi-arrow-left"></i> Volver
                 </a>
-                <button type="submit" class="btn btn-primary" id="btn-submit" disabled>
+                <button type="submit" class="btn btn-primary">
                     <i class="zmdi zmdi-check"></i> Crear Usuario
                 </button>
             </div>
@@ -304,7 +485,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'actualizar') {
     <!-- Lista de Usuarios -->
     <?php if (!$usuario_a_editar): ?>
     <div class="section-container">
-        <h3 class="section-title">Usuarios Registrados</h3>
+        <h3 class="section-title">Usuarios Registrados (<?php echo count($usuarios); ?>)</h3>
         <?php if (!empty($usuarios)): ?>
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
@@ -368,14 +549,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'actualizar') {
             </div>
             <div class="field-row">
                 <div class="field-col">
-                    <label class="field-label required">Apellido(s)</label>
+                    <label class="field-label">Apellido(s)</label>
                     <input type="text" name="apellido" class="form-control" 
-                           value="<?php echo htmlspecialchars($usuario_a_editar['apellido']); ?>" required />
+                           value="<?php echo htmlspecialchars($usuario_a_editar['apellido']); ?>" />
                 </div>
                 <div class="field-col">
                     <label class="field-label required">Correo Electrónico</label>
                     <input type="email" name="email" class="form-control" 
-                           value="<?php echo htmlspecialchars($usuario_a_editar['email']); ?>" placeholder="usuario@dominio.com" required />
+                           value="<?php echo htmlspecialchars($usuario_a_editar['email']); ?>" required />
                 </div>
             </div>
             <div class="field-row">
@@ -399,8 +580,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'actualizar') {
 
             <!-- Botones -->
             <div class="button-container">
-                <a href="gestion_usuarios.php?accion=editar" class="btn btn-secondary">
-                    <i class="zmdi zmdi-arrow-left"></i> Volver a la lista
+                <a href="gestion_usuarios.php" class="btn btn-secondary">
+                    <i class="zmdi zmdi-arrow-left"></i> Volver
                 </a>
                 <button type="submit" class="btn btn-primary">
                     <i class="zmdi zmdi-check"></i> Actualizar Usuario
@@ -409,100 +590,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'actualizar') {
         </form>
     </div>
     <?php endif; ?>
-
 </div>
 
 <?php include("footer.php"); ?>
 
-<script src="./js/jquery-3.1.1.min.js"></script>
-<script src="./js/sweetalert2.min.js"></script>
-<script src="./js/bootstrap.min.js"></script>
-<script src="./js/material.min.js"></script>
-<script src="./js/ripples.min.js"></script>
-<script src="./js/jquery.mCustomScrollbar.concat.min.js"></script>
-<script src="./js/main.js"></script>
-<script>
-    $.material.init();
 
-    // Validación en tiempo real de la contraseña (solo para creación)
-    const claveInput = document.getElementById('clave');
-    if (claveInput) {
-        claveInput.addEventListener('input', function() {
-            const clave = this.value;
-            const feedback = document.getElementById('clave-feedback');
-            const btnSubmit = document.getElementById('btn-submit');
-
-            // Resetear estilos
-            this.classList.remove('is-invalid', 'is-valid');
-            feedback.innerHTML = '';
-            
-            if (clave.length === 0) {
-                feedback.style.color = 'black';
-                feedback.textContent = 'La contraseña debe tener:';
-                btnSubmit.disabled = true;
-                return;
-            }
-
-            let criterios = [];
-            let cumplidos = 0;
-            const total = 5;
-
-            // Validar cada criterio
-            if (clave.length >= 8) {
-                criterios.push('<span style="color:green;">✓</span> Al menos 8 caracteres');
-                cumplidos++;
-            } else {
-                criterios.push('<span style="color:red;">✗</span> Al menos 8 caracteres');
-            }
-
-            if (/[A-Z]/.test(clave)) {
-                criterios.push('<span style="color:green;">✓</span> Una letra mayúscula');
-                cumplidos++;
-            } else {
-                criterios.push('<span style="color:red;">✗</span> Una letra mayúscula');
-            }
-
-            if (/[a-z]/.test(clave)) {
-                criterios.push('<span style="color:green;">✓</span> Una letra minúscula');
-                cumplidos++;
-            } else {
-                criterios.push('<span style="color:red;">✗</span> Una letra minúscula');
-            }
-
-            if (/\d/.test(clave)) {
-                criterios.push('<span style="color:green;">✓</span> Un número');
-                cumplidos++;
-            } else {
-                criterios.push('<span style="color:red;">✗</span> Un número');
-            }
-
-            if (/[^A-Za-z0-9]/.test(clave)) {
-                criterios.push('<span style="color:green;">✓</span> Un carácter especial');
-                cumplidos++;
-            } else {
-                criterios.push('<span style="color:red;">✗</span> Un carácter especial');
-            }
-
-            // Mostrar resultados
-            feedback.innerHTML = criterios.join('<br>');
-            
-            if (cumplidos === total) {
-                this.classList.add('is-valid');
-                this.classList.remove('is-invalid');
-                btnSubmit.disabled = false;
-            } else {
-                this.classList.add('is-invalid');
-                this.classList.remove('is-valid');
-                btnSubmit.disabled = true;
-            }
-        });
-    }
-
-    // Enfocar campo de cédula al cargar
-    document.addEventListener('DOMContentLoaded', function() {
-        const cedulaInput = document.querySelector('input[name="cedula"]');
-        if (cedulaInput) {
-            cedulaInput.focus();
-        }
-    });
-</script>
+	<!-- Scripts -->
+	<script src="./js/jquery-3.1.1.min.js"></script>
+	<script src="./js/bootstrap.min.js"></script>
+	<script src="./js/material.min.js"></script>
+	<script src="./js/ripples.min.js"></script>
+	<script src="./js/jquery.mCustomScrollbar.concat.min.js"></script>
+	<script src="./js/main.js"></script>
+	<script>
+		$.material.init();
+	</script>

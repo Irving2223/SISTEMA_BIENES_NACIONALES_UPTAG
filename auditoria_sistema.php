@@ -17,50 +17,82 @@ $registros = [];
 $usuarios = [];
 
 // Obtener lista de usuarios para el filtro
-$sql_usuarios = "SELECT cedula, nombre, apellido FROM usuarios ORDER BY nombre";
-$result_usuarios = mysqli_query($conn, $sql_usuarios);
-if ($result_usuarios) {
-    while ($row = mysqli_fetch_assoc($result_usuarios)) {
-        $usuarios[] = $row;
+// Primero verificar si la tabla usuarios existe
+$check_usuarios = $conn->query("SHOW TABLES LIKE 'usuarios'");
+$usuarios_tabla_existe = $check_usuarios && $check_usuarios->num_rows > 0;
+
+$col_nombre = 'nombre';
+$col_apellido = 'apellido';
+
+$usuarios = [];
+if ($usuarios_tabla_existe) {
+    // Verificar estructura de la tabla
+    $check_columns = $conn->prepare("SHOW COLUMNS FROM usuarios LIKE 'nombres'");
+    $check_columns->execute();
+    $has_nombres = $check_columns->get_result()->num_rows > 0;
+    $check_columns->close();
+    
+    $col_nombre = $has_nombres ? 'nombres' : 'nombre';
+    $col_apellido = $has_nombres ? 'apellidos' : 'apellido';
+    
+    $sql_usuarios = "SELECT cedula, {$col_nombre}, {$col_apellido} FROM usuarios ORDER BY {$col_nombre}";
+    $result_usuarios = $conn->query($sql_usuarios);
+    if ($result_usuarios) {
+        while ($row = $result_usuarios->fetch_assoc()) {
+            $usuarios[] = $row;
+        }
+    } else {
+        $mensaje_error = "Error al cargar usuarios: " . $conn->error;
     }
 } else {
-    $mensaje_error = "Error al cargar usuarios.";
+    $mensaje_error = "La tabla 'usuarios' no existe en la base de datos.";
 }
+
+// Verificar si la tabla auditoria existe
+$check_auditoria = $conn->query("SHOW TABLES LIKE 'auditoria'");
+$auditoria_existe = $check_auditoria && $check_auditoria->num_rows > 0;
 
 // Procesar filtros cuando se envía el formulario
 $fecha_desde = $_POST['fecha_desde'] ?? date('Y-m-d', strtotime('-7 days'));
 $fecha_hasta = $_POST['fecha_hasta'] ?? date('Y-m-d');
 $cedula_usuario = $_POST['cedula_usuario'] ?? 'todos';
 
-// Construir consulta base
-$sql_base = "SELECT b.*, u.nombre, u.apellido 
-             FROM bitacora b 
-             LEFT JOIN usuarios u ON b.cedula_usuario = u.cedula 
-             WHERE 1=1";
+// Construir consulta base solo si la tabla auditoria existe
+if ($auditoria_existe) {
+    $sql_base = "SELECT b.*, u.{$col_nombre}, u.{$col_apellido} 
+                 FROM auditoria b 
+                 LEFT JOIN usuarios u ON b.usuario_cedula = u.cedula 
+                 WHERE 1=1";
+} else {
+    $sql_base = "SELECT 'N/A' as id, 'Tabla auditoria no existe' as accion, 'N/A' as detalle, NOW() as fecha_accion";
+    $mensaje_error = "La tabla 'auditoria' no existe en la base de datos.";
+}
 
 // Añadir condiciones según filtros
 $params = [];
 $types = "";
 
-if (!empty($fecha_desde)) {
+if ($auditoria_existe && !empty($fecha_desde)) {
     $sql_base .= " AND DATE(b.fecha_accion) >= ?";
     $params[] = $fecha_desde;
     $types .= "s";
 }
 
-if (!empty($fecha_hasta)) {
+if ($auditoria_existe && !empty($fecha_hasta)) {
     $sql_base .= " AND DATE(b.fecha_accion) <= ?";
     $params[] = $fecha_hasta;
     $types .= "s";
 }
 
-if ($cedula_usuario !== 'todos' && !empty($cedula_usuario)) {
-    $sql_base .= " AND b.cedula_usuario = ?";
+if ($auditoria_existe && $cedula_usuario !== 'todos' && !empty($cedula_usuario)) {
+    $sql_base .= " AND b.usuario_cedula = ?";
     $params[] = $cedula_usuario;
     $types .= "s";
 }
 
-$sql_base .= " ORDER BY b.fecha_accion DESC";
+if ($auditoria_existe) {
+    $sql_base .= " ORDER BY b.fecha_accion DESC";
+}
 
 // Ejecutar consulta con filtros
 $stmt = mysqli_prepare($conn, $sql_base);
@@ -116,7 +148,7 @@ if ($result) {
                         <?php foreach ($usuarios as $user): ?>
                             <option value="<?php echo htmlspecialchars($user['cedula']); ?>" 
                                     <?php echo ($cedula_usuario === $user['cedula']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($user['nombre'] . ' ' . $user['apellido'] . ' (' . $user['cedula'] . ')'); ?>
+                                <?php echo htmlspecialchars(trim($user['nombre'] . ' ' . $user['apellido']) . ' (' . $user['cedula'] . ')'); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -158,21 +190,29 @@ if ($result) {
             <tbody>
                 <?php foreach ($registros as $registro): ?>
                 <tr>
-                    <td><?php echo htmlspecialchars($registro['id_bitacora']); ?></td>
+                    <td><?php echo htmlspecialchars($registro['id']); ?></td>
                     <td>
                         <?php 
-                        $nombre_completo = trim(($registro['nombre'] ?? '') . ' ' . ($registro['apellido'] ?? ''));
+                        $nombre_completo = trim(($registro[$col_nombre] ?? '') . ' ' . ($registro[$col_apellido] ?? ''));
                         echo !empty($nombre_completo) ? htmlspecialchars($nombre_completo) : 'Sistema';
                         ?>
-                        <br><small class="text-muted"><?php echo htmlspecialchars($registro['cedula_usuario']); ?></small>
+                        <br><small class="text-muted"><?php echo htmlspecialchars($registro['usuario_cedula']); ?></small>
                     </td>
                     <td>
                         <span class="badge 
                             <?php 
-                                switch($registro['accion']) {
-                                    case 'Registro': echo 'bg-success'; break;
-                                    case 'Edicion': echo 'bg-warning text-dark'; break;
-                                    case 'Consulta': echo 'bg-info'; break;
+                                $accion = strtoupper($registro['accion']);
+                                switch($accion) {
+                                    case 'REGISTRO': 
+                                    case 'INSERT': echo 'bg-success'; break;
+                                    case 'EDICION': 
+                                    case 'UPDATE': echo 'bg-warning text-dark'; break;
+                                    case 'CONSULTA': 
+                                    case 'SELECT': echo 'bg-info'; break;
+                                    case 'INICIO DE SESIÓN': 
+                                    case 'LOGIN': echo 'bg-primary'; break;
+                                    case 'ELIMINAR': 
+                                    case 'DELETE': echo 'bg-danger'; break;
                                     default: echo 'bg-secondary'; break;
                                 }
                             ?>">
@@ -180,8 +220,8 @@ if ($result) {
                         </span>
                     </td>
                     <td><?php echo htmlspecialchars($registro['tabla_afectada']); ?></td>
-                    <td><?php echo htmlspecialchars($registro['registro_afectado']); ?></td>
-                    <td><?php echo htmlspecialchars($registro['detalle']); ?></td>
+                    <td><?php echo htmlspecialchars($registro['datos_nuevos'] ?? $registro['datos_anteriores'] ?? 'N/A'); ?></td>
+                    <td><?php echo htmlspecialchars($registro['datos_nuevos'] ?? ''); ?></td>
                     <td><?php echo date('d/m/Y H:i:s', strtotime($registro['fecha_accion'])); ?></td>
                 </tr>
                 <?php endforeach; ?>

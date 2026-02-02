@@ -6,21 +6,37 @@ $cedula = $_SESSION['usuario']['cedula'];
 $mensaje_error = '';
 $mensaje_exito = '';
 
-// Obtener datos del usuario
-$query = "SELECT nombres, email, rol, activo FROM usuarios WHERE cedula = ?";
-$stmt = $conn->prepare($query);
-$stmt->bind_param("s", $cedula);
-$stmt->execute();
-$result = $stmt->get_result();
+// Usar datos de la sesión directamente (ya fueron obtenidos durante el login)
+$usuario = [
+    'nombre_completo' => trim(($_SESSION['usuario']['nombre'] ?? '') . ' ' . ($_SESSION['usuario']['apellido'] ?? '')),
+    'rol' => $_SESSION['usuario']['rol'] ?? 'Usuario',
+    'email' => $_SESSION['usuario']['email'] ?? ''
+];
 
-if ($result->num_rows == 0) {
-    $mensaje_error = "Usuario no encontrado.";
-} else {
-    $usuario = $result->fetch_assoc();
-    // Agregar apellido desde la sesión o como vacío
-    $usuario['apellido'] = '';
+// Si necesitamos obtener email actualizado de la BD, intentar con estructura flexible
+try {
+    $check_columns = $conn->prepare("SHOW COLUMNS FROM usuarios LIKE 'email'");
+    if ($check_columns && $check_columns->execute() && $check_columns->get_result()->num_rows > 0) {
+        $check_columns->close();
+        // Intentar obtener email - usando la cedula como identificador
+        $email_query = $conn->prepare("SELECT email FROM usuarios WHERE cedula = ?");
+        if ($email_query) {
+            $email_query->bind_param("s", $cedula);
+            $email_query->execute();
+            $email_result = $email_query->get_result();
+            if ($email_result->num_rows > 0) {
+                $email_data = $email_result->fetch_assoc();
+                $usuario['email'] = $email_data['email'] ?? '';
+            }
+            $email_query->close();
+        }
+    } else {
+        $check_columns->close();
+    }
+} catch (Exception $e) {
+    // Si hay error, usar el email de la sesión
+    error_log("Error al obtener email: " . $e->getMessage());
 }
-$stmt->close();
 
 
 // Procesar formulario si se envío
@@ -110,13 +126,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($stmt_update->execute()) {
                 // Registrar en auditoria
-                $detalle = "Cambio de correo: {$email_actual} → {$nuevo_email}";
                 $auditoria = "INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_anteriores, datos_nuevos, ip_address) VALUES ('usuarios', 'UPDATE', ?, ?, ?, ?)";
                 $stmt_aud = $conn->prepare($auditoria);
                 $ip = $_SERVER['REMOTE_ADDR'] ?? '';
                 $datos_ant = json_encode(['email' => $email_actual]);
                 $datos_nue = json_encode(['email' => $nuevo_email]);
-                $stmt_aud->bind_param("sssss", $cedula, $datos_ant, $datos_nue, $ip);
+                $stmt_aud->bind_param("ssss", $cedula, $datos_ant, $datos_nue, $ip);
                 $stmt_aud->execute();
                 $stmt_aud->close();
 
@@ -158,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div style="display:flex; align-items:center; gap:30px; flex-wrap:wrap; padding:20px;">
                 <div>
                     <p style="margin:4px 0; color:white; text-shadow:0.1px 0.1px 10px black;"><strong>Usuario:</strong></p>
-                    <h2 style="margin:0; font-size:clamp(2rem, 8vw, 80px); color:white; font-weight:900; font-family:montserrat; text-shadow:0.1px 0.1px 10px black;"> <i class="zmdi zmdi-account"></i>   <?= htmlspecialchars($usuario['nombres'] . ' ' . $_SESSION['usuario']['apellido']) ?></h2>
+                    <h2 style="margin:0; font-size:clamp(2rem, 8vw, 80px); color:white; font-weight:900; font-family:montserrat; text-shadow:0.1px 0.1px 10px black;"> <i class="zmdi zmdi-account"></i>   <?= htmlspecialchars($_SESSION['usuario']['nombre'] . ' ' . $_SESSION['usuario']['apellido']) ?></h2>
                     <p style="margin:4px 0; color:white; text-shadow:0.1px 0.1px 10px black;">Cédula: <strong> <?= htmlspecialchars($cedula) ?> </strong></p>
                     <span style="background:white; color:black; padding:6px 12px; border-radius:6px; font-size:0.9rem; font-weight:800;">
                         <?= htmlspecialchars($usuario['rol']) ?>
@@ -192,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <tr>
                             <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:#ff6600;">Nombre Completo</td>
                             <td data-label="Valor" style="padding:14px 15px; border-bottom:1px solid #eee; color:#333;">
-                                <?= htmlspecialchars($usuario['nombres'] . ' ' . $_SESSION['usuario']['apellido']) ?>
+                                <?= htmlspecialchars($_SESSION['usuario']['nombre'] . ' ' . $_SESSION['usuario']['apellido']) ?>
                             </td>
                         </tr>
                         <tr>
@@ -216,8 +231,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <tr>
                             <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:#ff6600;">Estado</td>
                             <td data-label="Valor" style="padding:14px 15px; border-bottom:1px solid #eee; color:#333;">
-                                <span class="status" style="background:<?= $usuario['activo'] ? '#d4edda' : '#f8d7da' ?>; color:<?= $usuario['activo'] ? '#155724' : '#721c24' ?>; padding:6px 12px; border-radius:4px; font-size:0.8rem; font-weight:600;">
-                                    <?= $usuario['activo'] ? 'Activo' : 'Inactivo' ?>
+                                <span class="status" style="background:#d4edda; color:#155724; padding:6px 12px; border-radius:4px; font-size:0.8rem; font-weight:600;">
+                                    Activo
                                 </span>
                             </td>
                         </tr>

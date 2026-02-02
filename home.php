@@ -107,9 +107,9 @@ $sql_bienes = "SELECT COUNT(*) AS total FROM bienes WHERE activo = 1";
 $resultado_bienes = ejecutarConsulta($conn, $sql_bienes, "Total de Bienes");
 $total_bienes = $resultado_bienes ? $resultado_bienes->fetch_assoc()['total'] : 0;
 
-// --- 2. Total de Ubicaciones (dependencias + ubicaciones) ---
-$sql_ubicaciones = "SELECT COUNT(*) AS total FROM ubicaciones WHERE activo = 1";
-$resultado_ubicaciones = ejecutarConsulta($conn, $sql_ubicaciones, "Total de Ubicaciones");
+// --- 2. Total de Desincorporados ---
+$sql_ubicaciones = "SELECT COUNT(*) AS total FROM bienes WHERE estatus_id = 4 AND activo = 1";
+$resultado_ubicaciones = ejecutarConsulta($conn, $sql_ubicaciones, "Total de Desincorporados");
 $total_ubicaciones = $resultado_ubicaciones ? $resultado_ubicaciones->fetch_assoc()['total'] : 0;
 
 // --- 3. Total de Dependencias ---
@@ -217,7 +217,7 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <title>Sistema de Bienes Nacionales - UPTAG</title>
+    <title>Sistema de Bienes Nacionales UPTAG</title>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
 	<link rel="stylesheet" href="./css/main.css">
@@ -341,9 +341,9 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 						<i class="zmdi zmdi-border-color"></i> Reportes <i class="zmdi zmdi-caret-down pull-right"></i>
 					</a>
 					<ul class="list-unstyled full-box">
-						<li><a href="reporte_inventario.php"><i class="zmdi zmdi-assignment"></i> Inventario General</a></li>
-						<li><a href="reporte_movimientos.php"><i class="zmdi zmdi-swap"></i> Reporte de Movimientos</a></li>
-                        <li><a href="reporte_ubicaciones.php"><i class="zmdi zmdi-pin"></i> Reporte por Ubicación</a></li>
+						<li><a href="generar_reporte_inventario.php"><i class="zmdi zmdi-assignment"></i> Inventario General</a></li>
+						<li><a href="generar_reporte_movimientos.php"><i class="zmdi zmdi-swap"></i> Reporte de Movimientos</a></li>
+                        <li><a href="generar_reporte_ubicaciones.php"><i class="zmdi zmdi-pin"></i> Reporte por Ubicación</a></li>
 					</ul>
 				</li>
 				<?php if ($es_administrador): ?>
@@ -365,7 +365,7 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 	<section class="full-box dashboard-contentPage" style="background-color:#f5f5f5;">
 		
 		<!-- NavBar -->
-		<nav class="full-box dashboard-Navbar" style="background:linear-gradient(90deg, #ff9900b6 0%, #ff990052 100%); background-repeat:no-repeat; background-color:#f5f5f5; height:60px;">
+		<nav class="full-box dashboard-Navbar" style="background: linear-gradient(90deg,rgba(219, 155, 35, 1) 0%, rgba(255, 145, 0, 1) 50%, rgba(252, 203, 69, 1) 100%);">
 			<ul class="full-box list-unstyled text-right">
 				<li class="pull-left">
 					<a href="#!" style="height:60px;" class="btn-menu-dashboard"><i class="zmdi zmdi-more-horiz"></i></a>
@@ -387,7 +387,7 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 				<div class="col-md-3">
 					<div class="panel panel-default" style="border-radius:15px;">
 						<div class="panel-body" style="border-top:5px solid rgb(121, 75, 0); border-radius:15px;">
-							<h3 style="font-family:montserrat; font-weight:600; text-align:center; font-size:20px;"><i class="zmdi zmdi-box zmdi-hc-fw"></i> Total Bienes</h3>
+							<h3 style="font-family:montserrat; font-weight:600; text-align:center; font-size:20px;"><i class="zmdi zmdi-border-all"></i> Total Bienes</h3>
 							<p style="font-family:montserrat; font-weight:900; text-align:center; font-size:50px; color:#ff8a00;"><?php echo $total_bienes; ?></p>
 						</div>
 					</div>
@@ -396,7 +396,7 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 				<div class="col-md-3">
 					<div class="panel panel-default" style="border-radius:15px;">
 						<div class="panel-body" style="border-top:5px solid rgb(121, 75, 0);; border-radius:15px;">
-							<h3 style="font-family:montserrat; font-weight:600; text-align:center; font-size:20px;"><i class="zmdi zmdi-pin"></i> Ubicaciones</h3>
+							<h3 style="font-family:montserrat; font-weight:600; text-align:center; font-size:20px;"><i class="zmdi zmdi-delete"></i> Desincorporados</h3>
 							<p style="font-family:montserrat; font-weight:900; text-align:center; font-size:50px; color:#ff8a00;"><?php echo $total_ubicaciones; ?></p>
 						</div>
 					</div>
@@ -575,6 +575,12 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 		</div>
 
 	</section>
+
+	<?php
+	
+	include("footer.php");
+	
+	?>
 
 	<!-- Scripts -->
 	<script src="./js/jquery-3.1.1.min.js"></script>

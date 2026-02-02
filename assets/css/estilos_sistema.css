@@ -85,7 +85,7 @@
     /* Título principal - fluido */
     .main-title {
       font-weight: 900;
-      color: green;
+      color: #ff6600;
       font-size: clamp(1.8rem, 5vw, 50px);
       padding: 20px 30px;
       text-align: left;
@@ -100,7 +100,7 @@
 
     .main-title i {
       font-size: clamp(1.8rem, 5vw, 52px);
-      color: green;
+      color: #ff6600;
     }
 
     /* Cada sección con fondo blanco y diseño fluido */
@@ -121,7 +121,7 @@
       margin: 0 0 20px 0;
       padding-bottom: 12px;
       border-bottom: 2px solid #e0e0e0;
-      color: green;
+      color: #ff6600;
       font-size: clamp(1.2rem, 3.5vw, 1.5rem);
       font-weight: 800;
       font-family: 'Montserrat', sans-serif;
@@ -175,8 +175,8 @@
     select:focus,
     textarea:focus {
       outline: none;
-      border-color: #28a745;
-      box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
+      border-color: #ff6600;
+      box-shadow: 0 0 0 2px rgba(255, 102, 0, 0.2);
     }
 
     /* Radio buttons */
@@ -234,12 +234,12 @@
 
     .btn-primary {
       background-color: transparent;
-      border: 2px solid #009688;
+      border: 2px solid #ff6600;
       color: black;
     }
 
     .btn-primary:hover {
-      background-color: #003300ff;
+      background-color: #cc5200ff;
       transform: translateY(-2px);
     }
 
@@ -334,7 +334,7 @@
     /* Título principal con icono */
     .main-title {
       font-weight: 900;
-      color: green;
+      color: #ff6600;
       font-size: clamp(1.8rem, 5vw, 50px);
       padding: 20px 0 20px 0;
       text-align: left;
@@ -347,7 +347,7 @@
 
     .main-title i {
       font-size: clamp(1.8rem, 5vw, 52px);
-      color: green;
+      color: #ff6600;
     }
 
     /* Sección de búsqueda */
@@ -382,7 +382,7 @@
 
     .form-label {
       font-weight: 800;
-      color: green;
+      color: #ff6600;
       font-size: 0.95rem;
       font-family: 'Montserrat', sans-serif;
     }
@@ -401,8 +401,8 @@
     .form-input:focus,
     .form-select:focus {
       outline: none;
-      border-color: #28a745;
-      box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.2);
+      border-color: #ff6600;
+      box-shadow: 0 0 0 2px rgba(255, 102, 0, 0.2);
     }
 
     /* Botón buscar */
@@ -412,8 +412,8 @@
 
     .btn-search {
       background-color: transparent;
-      color: #009688;
-      border: solid #009688 2px;
+      color: #ff6600;
+      border: solid #ff6600 2px;
       padding: 12px 20px;
       font-size: 1rem;
       font-weight: 600;
@@ -574,7 +574,7 @@
         top: 10px;
         width: 100px;
         font-weight: 800;
-        color: green;
+        color: #ff6600;
         font-size: 0.9rem;
       }
 
@@ -784,7 +784,7 @@
     /* Título */
     .title {
       font-size: 1.5rem;
-      color: green;
+      color: #ff6600;
       font-weight: 700;
       margin: 20px 0;
       display: flex;
@@ -849,7 +849,7 @@
     }
 
     .stat h3 {
-      color: green;
+      color: #ff6600;
       margin: 0;
       font-size: 1.4rem;
     }

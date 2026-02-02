@@ -84,14 +84,14 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
         $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
         try {
-            // Configuración del servidor SMTP (Gmail)
+            // Configuración del servidor SMTP (Gmail) - Puerto SSL
             $mail->isSMTP();
             $mail->Host       = 'smtp.gmail.com';
             $mail->SMTPAuth   = true;
-            $mail->Username   = 'sistemaintidac2@gmail.com'; // Tu correo
-            $mail->Password   = 'svjr bcbw lavf ewpq ';         // Contraseña de aplicación
-            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port       = 587;
+            $mail->Username   = 'gestiondebienesnacionalesuptag@gmail.com';
+            $mail->Password   = 'xoig bjor txpw qdms';
+            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+            $mail->Port       = 465;
 
             // Configuración adicional para evitar problemas comunes
             $mail->SMTPOptions = array(
@@ -262,11 +262,11 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
                     <div class='footer'>
                         <p class='footer-text'>
                             <strong>Sistema de Gestión de Bienes Nacionales</strong><br>
-                            UPTAG © 2025<br>
+                            UPTAG © 2026<br>
                             Todos los derechos reservados
                         </p>
                         <div class='footer-links'>
-                            <a href='http://localhost/SISTEMA%20DE%20HUMBERTO/Loggin.php'>Acceder al Sistema</a>
+
                         </div>
                     </div>
                 </div>
