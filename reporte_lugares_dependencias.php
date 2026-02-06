@@ -211,23 +211,19 @@ $conn->close();
         <thead>
             <tr>
                 <th style="width: 30px; text-align: center;">Nº</th>
-                <th style="width: 30px; text-align: center;">ID</th>
-                <th style="width: 100px;">Nombre</th>
-                <th style="width: 60px;">Tipo</th>
-                <th style="width: 50px;">Dep.</th>
-                <th style="width: 80px;">Responsable</th>
+                <th style="width: 120px;">Nombre</th>
+                <th style="width: 80px;">Código Bien Nacional</th>
+                <th style="width: 100px;">Dependencia</th>
                 <th style="width: 50px; text-align: center;">Estatus</th>
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($ubicaciones as $ubi): ?>
+            <?php $contador = 1; foreach ($ubicaciones as $ubi): ?>
             <tr>
-                <td class="text-center"><?php echo $contadorUbi++; ?></td>
-                <td class="text-center"><?php echo htmlspecialchars($ubi['id'] ?? 'N/A'); ?></td>
+                <td class="text-center"><strong><?php echo $contador++; ?></strong></td>
                 <td><?php echo htmlspecialchars($ubi['nombre'] ?? 'N/A'); ?></td>
-                <td><?php echo htmlspecialchars(ucfirst($ubi['tipo'] ?? 'N/A')); ?></td>
-                <td><?php echo htmlspecialchars($ubi['dependencia'] ?? $ubi['dependencia_id'] ?? 'N/A'); ?></td>
-                <td><?php echo htmlspecialchars($ubi['responsable'] ?? 'N/A'); ?></td>
+                <td><?php echo htmlspecialchars($ubi['codigo_bien_nacional'] ?? 'Sin asignar'); ?></td>
+                <td><?php echo htmlspecialchars($ubi['nombre_dependencia'] ?? 'Sin asignar'); ?></td>
                 <td class="text-center">
                     <?php 
                         $estatus = isset($ubi['activo']) ? ($ubi['activo'] == 1 ? 'Activo' : 'Inactivo') : 'Activo';
@@ -242,7 +238,7 @@ $conn->close();
         </tbody>
         <tfoot>
             <tr class="total-row">
-                <td colspan="6" class="text-right" style="padding: 8px;">TOTAL UBICACIONES:</td>
+                <td colspan="4" class="text-right" style="padding: 8px;">TOTAL UBICACIONES:</td>
                 <td class="text-center" style="padding: 8px;"><?php echo count($ubicaciones); ?></td>
             </tr>
         </tfoot>
@@ -256,21 +252,15 @@ $conn->close();
         <thead>
             <tr>
                 <th style="width: 30px; text-align: center;">Nº</th>
-                <th style="width: 30px; text-align: center;">ID</th>
-                <th style="width: 120px;">Nombre</th>
-                <th style="width: 150px;">Descripción</th>
-                <th style="width: 80px;">Responsable</th>
+                <th style="width: 150px;">Nombre</th>
                 <th style="width: 50px; text-align: center;">Estatus</th>
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($dependencias as $dep): ?>
+            <?php $contadorDep = 1; foreach ($dependencias as $dep): ?>
             <tr>
-                <td class="text-center"><?php echo $contadorDep++; ?></td>
-                <td class="text-center"><?php echo htmlspecialchars($dep['id'] ?? 'N/A'); ?></td>
+                <td class="text-center"><strong><?php echo $contadorDep++; ?></strong></td>
                 <td><?php echo htmlspecialchars($dep['nombre'] ?? 'N/A'); ?></td>
-                <td><?php echo htmlspecialchars($dep['descripcion'] ?? 'Sin descripción'); ?></td>
-                <td><?php echo htmlspecialchars($dep['responsable'] ?? 'N/A'); ?></td>
                 <td class="text-center">
                     <?php 
                         $estatus = isset($dep['activo']) ? ($dep['activo'] == 1 ? 'Activo' : 'Inactivo') : 'Activo';
@@ -285,7 +275,7 @@ $conn->close();
         </tbody>
         <tfoot>
             <tr class="total-row">
-                <td colspan="5" class="text-right" style="padding: 8px;">TOTAL DEPENDENCIAS:</td>
+                <td colspan="2" class="text-right" style="padding: 8px;">TOTAL DEPENDENCIAS:</td>
                 <td class="text-center" style="padding: 8px;"><?php echo count($dependencias); ?></td>
             </tr>
         </tfoot>

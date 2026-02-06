@@ -332,9 +332,7 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 					<ul class="list-unstyled full-box">
 						<li><a href="registrar_bien.php"><i class="zmdi zmdi-plus-circle"></i> Registrar Bien</a></li>
                         <li><a href="editar_bien.php"><i class="zmdi zmdi-edit"></i> Editar Bien</a></li>
-						<li><a href="registrar_ubicacion.php"><i class="zmdi zmdi-pin"></i> Registrar Ubicación</a></li>
 						<li><a href="registrar_movimiento.php"><i class="zmdi zmdi-swap"></i> Registrar Movimiento</a></li>
-						<li><a href="desincorporar_bien.php"><i class="zmdi zmdi-delete"></i> Desincorporar Bien</a></li>
 					</ul>
 				</li>
 
@@ -354,9 +352,9 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 					</a>
 					<ul class="list-unstyled full-box">
 						<li><a href="generar_reporte_inventario.php"><i class="zmdi zmdi-assignment"></i> Inventario General</a></li>
-						<li><a href="generar_reporte_movimientos.php"><i class="zmdi zmdi-swap"></i> Reporte de Movimientos</a></li>
+<!-- 						<li><a href="generar_reporte_movimientos.php"><i class="zmdi zmdi-swap"></i> Reporte de Movimientos</a></li>
                         <li><a href="generar_reporte_ubicaciones.php"><i class="zmdi zmdi-pin"></i> Reporte por Ubicación</a></li>
-					</ul>
+ -->					</ul>
 				</li>
 				<?php if ($es_administrador): ?>
 					<li><a href="configuracion.php"><i class="zmdi zmdi-settings"></i> Configuración</a></li>

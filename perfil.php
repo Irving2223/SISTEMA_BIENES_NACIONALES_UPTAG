@@ -296,11 +296,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <h2 class="section-title">Documentación</h2>
             <p style="color:#555; margin-bottom:20px;">Consulta el manual oficial para aprender a usar todas las funciones del sistema.</p>
             <div style="text-align:center;">
-                <a href="assets/manual_de_usuario.pdf" target="_blank" class="btn btn-primary" style="background-color:#ff6600; border:2px solid #ff6600; color:white; padding:12px 24px;">
+                <a href="#" target="_blank" class="btn btn-primary" style="background-color:#ff6600; border:2px solid #ff6600; color:white; padding:12px 24px;">
                     <i class="zmdi zmdi-file-text"></i> Manual de Usuario
                 </a>
 
-                <a href="assets/Manual de Requerimientos ERS_ Sistema INTI.pdf" target="_blank" class="btn btn-primary" style="background-color:#ff6600; border:2px solid #ff6600; color:white; padding:12px 24px;">
+                <a href="#" target="_blank" class="btn btn-primary" style="background-color:#ff6600; border:2px solid #ff6600; color:white; padding:12px 24px;">
                     <i class="zmdi zmdi-file-text"></i> Manual requerimientos
                 </a>
             </div>

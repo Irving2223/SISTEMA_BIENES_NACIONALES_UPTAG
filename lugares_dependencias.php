@@ -15,24 +15,67 @@ $tipo_mensaje = '';
 $ubicaciones = [];
 $dependencias = [];
 
-// Obtener ubicaciones
+// Obtener ubicaciones con datos relacionados
 try {
     function tablaExiste($conn, $nombre_tabla) {
         $result = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($nombre_tabla) . "'");
         return $result && $result->num_rows > 0;
     }
     
-    if (tablaExiste($conn, 'ubicaciones')) {
-        $result = $conn->query("SELECT * FROM ubicaciones ORDER BY nombre ASC");
+    function obtenerColumnas($conn, $tabla) {
+        $columnas = [];
+        $result = $conn->query("SHOW COLUMNS FROM `" . $conn->real_escape_string($tabla) . "`");
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $columnas[] = $row['Field'];
+            }
+        }
+        return $columnas;
+    }
+    
+    // Obtener dependencias con conteo de ubicaciones
+    $dependencias_ubicaciones = [];
+    if (tablaExiste($conn, 'dependencias')) {
+        $columnas_dependencias = obtenerColumnas($conn, 'dependencias');
+        
+        if (tablaExiste($conn, 'ubicaciones') && in_array('dependencia_id', $columnas_dependencias)) {
+            $result = $conn->query("SELECT d.*, COUNT(u.id) as total_ubicaciones FROM dependencias d LEFT JOIN ubicaciones u ON d.id = u.dependencia_id GROUP BY d.id ORDER BY d.nombre ASC");
+        } else {
+            $result = $conn->query("SELECT *, 0 as total_ubicaciones FROM dependencias ORDER BY nombre ASC");
+        }
+        
         while ($row = $result->fetch_assoc()) {
-            $ubicaciones[] = $row;
+            $dependencias[$row['id']] = $row;
+            $dependencias_ubicaciones[$row['id']] = $row['total_ubicaciones'] ?? 0;
         }
     }
     
-    if (tablaExiste($conn, 'dependencias')) {
-        $result = $conn->query("SELECT * FROM dependencias ORDER BY nombre ASC");
+    // Obtener ubicaciones con el código de bien nacional (campo descripcion) y nombre de dependencia
+    if (tablaExiste($conn, 'ubicaciones')) {
+        $columnas_ubicaciones = obtenerColumnas($conn, 'ubicaciones');
+        
+        // Verificar si descripcion tiene el código de bien nacional
+        $tiene_descripcion = in_array('descripcion', $columnas_ubicaciones);
+        
+        $result = $conn->query("SELECT u.* FROM ubicaciones u ORDER BY u.nombre ASC");
         while ($row = $result->fetch_assoc()) {
-            $dependencias[] = $row;
+            // Usar descripcion como código de bien nacional
+            $codigo_bien = $tiene_descripcion ? ($row['descripcion'] ?: 'Sin asignar') : 'Sin asignar';
+            
+            // Obtener nombre de dependencia
+            $dep_id = $row['dependencia_id'] ?? '';
+            $nombre_dependencia = 'Sin asignar';
+            $total_ubicaciones_dep = 0;
+            
+            if ($dep_id && isset($dependencias[$dep_id])) {
+                $nombre_dependencia = $dependencias[$dep_id]['nombre'] ?? 'Sin asignar';
+                $total_ubicaciones_dep = $dependencias[$dep_id]['total_ubicaciones'] ?? 0;
+            }
+            
+            $row['codigo_bien_nacional'] = $codigo_bien;
+            $row['nombre_dependencia'] = $nombre_dependencia;
+            $row['total_ubicaciones_dependencia'] = $total_ubicaciones_dep;
+            $ubicaciones[] = $row;
         }
     }
     
@@ -378,45 +421,32 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
                     <table id="tabla-ubicaciones">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th style="width: 50px; text-align: center;">Nº</th>
                                 <th>Nombre</th>
-                                <th>Tipo</th>
+                                <th>Código Bien Nacional</th>
                                 <th>Dependencia</th>
-                                <th>Responsable</th>
-                                <th>Dirección</th>
                                 <th>Estatus</th>
                             </tr>
                         </thead>
                         <tbody id="tbody-ubicaciones">
-                            <?php foreach ($ubicaciones as $ubic): ?>
+                            <?php $contador = 1; foreach ($ubicaciones as $ubic): ?>
                             <tr class="ubicacion-row" 
                                 data-id="<?php echo htmlspecialchars($ubic['id'] ?? ''); ?>"
                                 data-nombre="<?php echo htmlspecialchars($ubic['nombre'] ?? ''); ?>"
-                                data-tipo="<?php echo htmlspecialchars($ubic['tipo'] ?? ''); ?>"
-                                data-dependencia="<?php echo htmlspecialchars($ubic['dependencia_id'] ?? ''); ?>"
-                                data-responsable="<?php echo htmlspecialchars($ubic['responsable'] ?? ''); ?>"
-                                data-direccion="<?php echo htmlspecialchars($ubic['direccion'] ?? ''); ?>">
-                                <td><?php echo htmlspecialchars($ubic['id'] ?? 'N/A'); ?></td>
+                                data-codigo-bien="<?php echo htmlspecialchars($ubic['codigo_bien_nacional'] ?? 'Sin asignar'); ?>"
+                                data-dependencia="<?php echo htmlspecialchars($ubic['nombre_dependencia'] ?? 'Sin asignar'); ?>">
+                                <td class="text-center"><strong><?php echo $contador++; ?></strong></td>
                                 <td><strong><?php echo htmlspecialchars($ubic['nombre'] ?? 'N/A'); ?></strong></td>
                                 <td>
                                     <?php 
-                                        $tipo = strtolower($ubic['tipo'] ?? '');
-                                        $tipo_class = 'tipo-otro';
-                                        if (strpos($tipo, 'pnf') !== false) $tipo_class = 'tipo-pnf';
-                                        elseif (strpos($tipo, 'sede') !== false) $tipo_class = 'tipo-sede';
-                                        elseif (strpos($tipo, 'edificio') !== false) $tipo_class = 'tipo-edificio';
-                                        elseif (strpos($tipo, 'piso') !== false) $tipo_class = 'tipo-piso';
-                                        elseif (strpos($tipo, 'oficina') !== false) $tipo_class = 'tipo-oficina';
-                                        elseif (strpos($tipo, 'aula') !== false) $tipo_class = 'tipo-aula';
-                                        elseif (strpos($tipo, 'laboratorio') !== false) $tipo_class = 'tipo-laboratorio';
+                                        $codigo_bien = $ubic['codigo_bien_nacional'] ?? 'Sin asignar';
+                                        $badge_class = $codigo_bien == 'Sin asignar' ? 'status-inactivo' : 'status-activo';
                                     ?>
-                                    <span class="tipo-ubicacion <?php echo $tipo_class; ?>">
-                                        <?php echo htmlspecialchars(ucfirst($ubic['tipo'] ?? 'N/A')); ?>
+                                    <span class="status-badge <?php echo $badge_class; ?>">
+                                        <?php echo htmlspecialchars($codigo_bien); ?>
                                     </span>
                                 </td>
-                                <td><?php echo htmlspecialchars($ubic['dependencia_id'] ?? 'N/A'); ?></td>
-                                <td><?php echo htmlspecialchars($ubic['responsable'] ?? 'N/A'); ?></td>
-                                <td><?php echo htmlspecialchars($ubic['direccion'] ?? 'N/A'); ?></td>
+                                <td><?php echo htmlspecialchars($ubic['nombre_dependencia'] ?? 'Sin asignar'); ?></td>
                                 <td>
                                     <?php 
                                         $estatus = isset($ubic['activo']) ? ($ubic['activo'] == 1 ? 'Activo' : 'Inactivo') : 'Activo';
@@ -443,25 +473,19 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
                     <table id="tabla-dependencias">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th style="width: 50px; text-align: center;">Nº</th>
                                 <th>Nombre</th>
-                                <th>Descripción</th>
-                                <th>Responsable</th>
-                                <th>Estatus</th>
+                                <th style="width: 80px; text-align: center;">Estatus</th>
                             </tr>
                         </thead>
                         <tbody id="tbody-dependencias">
-                            <?php foreach ($dependencias as $dep): ?>
+                            <?php $contadorDep = 1; foreach ($dependencias as $dep): ?>
                             <tr class="dependencia-row" 
                                 data-id="<?php echo htmlspecialchars($dep['id'] ?? ''); ?>"
-                                data-nombre="<?php echo htmlspecialchars($dep['nombre'] ?? ''); ?>"
-                                data-descripcion="<?php echo htmlspecialchars($dep['descripcion'] ?? ''); ?>"
-                                data-responsable="<?php echo htmlspecialchars($dep['responsable'] ?? ''); ?>">
-                                <td><?php echo htmlspecialchars($dep['id'] ?? 'N/A'); ?></td>
+                                data-nombre="<?php echo htmlspecialchars($dep['nombre'] ?? ''); ?>">
+                                <td class="text-center"><strong><?php echo $contadorDep++; ?></strong></td>
                                 <td><strong><?php echo htmlspecialchars($dep['nombre'] ?? 'N/A'); ?></strong></td>
-                                <td><?php echo htmlspecialchars($dep['descripcion'] ?? 'Sin descripción'); ?></td>
-                                <td><?php echo htmlspecialchars($dep['responsable'] ?? 'N/A'); ?></td>
-                                <td>
+                                <td class="text-center">
                                     <?php 
                                         $estatus = isset($dep['activo']) ? ($dep['activo'] == 1 ? 'Activo' : 'Inactivo') : 'Activo';
                                         $badge_class = $estatus == 'Activo' ? 'status-activo' : 'status-inactivo';
@@ -527,21 +551,23 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
             // Filtrar ubicaciones
             var filasUbicaciones = document.querySelectorAll('.ubicacion-row');
             var countUbicaciones = 0;
+            var orden = 1;
             
             filasUbicaciones.forEach(function(fila) {
                 var nombre = fila.getAttribute('data-nombre').toLowerCase();
-                var tipo = fila.getAttribute('data-tipo').toLowerCase();
-                var responsable = fila.getAttribute('data-responsable').toLowerCase();
-                var direccion = fila.getAttribute('data-direccion').toLowerCase();
+                var codigo_bien = fila.getAttribute('data-codigo-bien').toLowerCase();
+                var dependencia = fila.getAttribute('data-dependencia').toLowerCase();
                 
                 var coincide = busqueda === '' || 
                               nombre.includes(busqueda) || 
-                              tipo.includes(busqueda) ||
-                              responsable.includes(busqueda) ||
-                              direccion.includes(busqueda);
+                              codigo_bien.includes(busqueda) ||
+                              dependencia.includes(busqueda);
                 
                 if (coincide) {
                     fila.style.display = '';
+                    // Actualizar número de orden
+                    fila.querySelector('td:first-child').innerHTML = '<strong>' + orden + '</strong>';
+                    orden++;
                     countUbicaciones++;
                 } else {
                     fila.style.display = 'none';
@@ -554,19 +580,18 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
             // Filtrar dependencias
             var filasDependencias = document.querySelectorAll('.dependencia-row');
             var countDependencias = 0;
+            var ordenDep = 1;
             
             filasDependencias.forEach(function(fila) {
                 var nombre = fila.getAttribute('data-nombre').toLowerCase();
-                var descripcion = fila.getAttribute('data-descripcion').toLowerCase();
-                var responsable = fila.getAttribute('data-responsable').toLowerCase();
                 
-                var coincide = busqueda === '' || 
-                              nombre.includes(busqueda) || 
-                              descripcion.includes(busqueda) ||
-                              responsable.includes(busqueda);
+                var coincide = busqueda === '' || nombre.includes(busqueda);
                 
                 if (coincide) {
                     fila.style.display = '';
+                    // Actualizar número de orden
+                    fila.querySelector('td:first-child').innerHTML = '<strong>' + ordenDep + '</strong>';
+                    ordenDep++;
                     countDependencias++;
                 } else {
                     fila.style.display = 'none';
@@ -592,10 +617,8 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
                     datosPDF.ubicaciones.push({
                         id: fila.getAttribute('data-id'),
                         nombre: fila.getAttribute('data-nombre'),
-                        tipo: fila.getAttribute('data-tipo'),
-                        dependencia: fila.getAttribute('data-dependencia'),
-                        responsable: fila.getAttribute('data-responsable'),
-                        direccion: fila.getAttribute('data-direccion'),
+                        codigo_bien_nacional: fila.getAttribute('data-codigo-bien'),
+                        nombre_dependencia: fila.getAttribute('data-dependencia'),
                         activo: 1
                     });
                 }
@@ -606,8 +629,6 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
                     datosPDF.dependencias.push({
                         id: fila.getAttribute('data-id'),
                         nombre: fila.getAttribute('data-nombre'),
-                        descripcion: fila.getAttribute('data-descripcion'),
-                        responsable: fila.getAttribute('data-responsable'),
                         activo: 1
                     });
                 }
