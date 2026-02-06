@@ -331,11 +331,23 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 					</a>
 					<ul class="list-unstyled full-box">
 						<li><a href="registrar_bien.php"><i class="zmdi zmdi-plus-circle"></i> Registrar Bien</a></li>
+                        <li><a href="editar_bien.php"><i class="zmdi zmdi-edit"></i> Editar Bien</a></li>
 						<li><a href="registrar_ubicacion.php"><i class="zmdi zmdi-pin"></i> Registrar Ubicación</a></li>
 						<li><a href="registrar_movimiento.php"><i class="zmdi zmdi-swap"></i> Registrar Movimiento</a></li>
 						<li><a href="desincorporar_bien.php"><i class="zmdi zmdi-delete"></i> Desincorporar Bien</a></li>
 					</ul>
 				</li>
+
+				<li>
+					<a href="#!" class="btn-sideBar-SubMenu">
+						<i class="zmdi zmdi-file-text"></i> Categorias<i class="zmdi zmdi-caret-down pull-right"></i>
+					</a>
+					<ul class="list-unstyled full-box">
+						<li><a href="categorias.php"><i class="zmdi zmdi-plus-circle"></i> Categorias</a></li>
+                        <li><a href="lugares_dependencias.php"><i class="zmdi zmdi-edit"></i> Lugares y dependencias</a></li>
+					</ul>
+				</li>
+
 				<li>
 					<a href="#!" class="btn-sideBar-SubMenu">
 						<i class="zmdi zmdi-border-color"></i> Reportes <i class="zmdi zmdi-caret-down pull-right"></i>

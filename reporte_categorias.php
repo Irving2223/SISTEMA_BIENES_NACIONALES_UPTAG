@@ -10,64 +10,11 @@ include("conexion.php");
 date_default_timezone_set('America/Caracas');
 
 // Obtener datos del POST
-// Verificar si es búsqueda personalizada o con fechas
-$es_busqueda_personalizada = isset($_POST['busqueda_personalizada']);
+$busqueda = $_POST['buscar'] ?? '';
+$resultados = isset($_POST['resultados_json']) ? json_decode($_POST['resultados_json'], true) : array();
 
-if ($es_busqueda_personalizada) {
-    // Búsqueda personalizada desde buscar.php
-    $resultados = json_decode($_POST['resultados_json'] ?? '[]', true);
-    $titulo_reporte = "Búsqueda de Bienes Nacionales";
-    $filtros_aplicados = [];
-    
-    if (!empty($_POST['termino'])) {
-        $filtros_aplicados[] = "Término: " . htmlspecialchars($_POST['termino']);
-    }
-    if (!empty($_POST['codigo_bien'])) {
-        $filtros_aplicados[] = "Código: " . htmlspecialchars($_POST['codigo_bien']);
-    }
-    if (!empty($_POST['estatus'])) {
-        $filtros_aplicados[] = "Estatus: " . htmlspecialchars($_POST['estatus']);
-    }
-    if (!empty($_POST['categoria'])) {
-        $filtros_aplicados[] = "Categoría: " . htmlspecialchars($_POST['categoria']);
-    }
-    if (!empty($_POST['lugar'])) {
-        $filtros_aplicados[] = "Lugar: " . htmlspecialchars($_POST['lugar']);
-    }
-    if (!empty($_POST['dependencia'])) {
-        $filtros_aplicados[] = "Dependencia: " . htmlspecialchars($_POST['dependencia']);
-    }
-    $fecha_inicio = date('Y-m-d');
-    $fecha_fin = date('Y-m-d');
-} else {
-    // Búsqueda tradicional con fechas
-    if (!isset($_POST['fecha_inicio'], $_POST['fecha_fin'], $_POST['resultados_json'])) {
-        die("Error: Datos insuficientes para generar el reporte.");
-    }
-    
-    $fecha_inicio = $_POST['fecha_inicio'];
-    $fecha_fin = $_POST['fecha_fin'];
-    $filtro_estatus = $_POST['filtro_estatus'] ?? 'todos';
-    $filtro_ubicacion = $_POST['filtro_ubicacion'] ?? 'todos';
-    $filtro_categoria = $_POST['filtro_categoria'] ?? 'todos';
-    $resultados = json_decode($_POST['resultados_json'], true);
-    
-    $titulo_reporte = "Reporte de Inventario por Fecha de Incorporación";
-    $filtros_aplicados = [];
-    if ($filtro_estatus !== 'todos') {
-        $filtros_aplicados[] = "Estatus: " . htmlspecialchars($filtro_estatus);
-    }
-    if ($filtro_ubicacion !== 'todos') {
-        $filtros_aplicados[] = "Ubicación: " . htmlspecialchars($filtro_ubicacion);
-    }
-    if ($filtro_categoria !== 'todos') {
-        $filtros_aplicados[] = "Categoría: " . htmlspecialchars($filtro_categoria);
-    }
-}
-
-// Validar que hay resultados
-if (!is_array($resultados) || empty($resultados)) {
-    die("Error: No hay datos para generar el reporte.");
+if (!is_array($resultados)) {
+    $resultados = array();
 }
 
 // Contador para numeración
@@ -81,12 +28,6 @@ if (isset($_SESSION['usuario']['nombre']) && isset($_SESSION['usuario']['apellid
     $nombre_usuario = htmlspecialchars($_SESSION['usuario']['nombre']);
 }
 
-// Calcular total del valor
-$total_valor = 0;
-foreach ($resultados as $bien) {
-    $total_valor += $bien['valor_original'] ?? 0;
-}
-
 // Cerrar conexión
 $conn->close();
 
@@ -96,7 +37,7 @@ $conn->close();
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reporte de Inventario - Bienes Nacionales UPTAG</title>
+    <title>Reporte de Categorías - Bienes Nacionales UPTAG</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         @page {
@@ -123,13 +64,13 @@ $conn->close();
 
         .header h1 {
             margin: 0;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
         }
 
         .header p {
             margin: 5px 0 0 0;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .report-info {
@@ -198,12 +139,12 @@ $conn->close();
         }
 
         .status-activo {
-            background-color: #333;
+            background-color: #28a745;
             color: white;
         }
 
         .status-inactivo {
-            background-color: #999;
+            background-color: #dc3545;
             color: white;
         }
 
@@ -211,24 +152,30 @@ $conn->close();
             background-color: #f5f5f5;
             font-weight: bold;
         }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h1>REPORTE DE INVENTARIO</h1>
+        <h1>REPORTE DE CATEGORÍAS</h1>
         <p>BIENES NACIONALES UPTAG</p>
     </div>
 
     <div class="report-info">
+        <?php if (!empty($busqueda)): ?>
         <div class="info-row">
-            <span class="info-label">Rango de Fechas:</span> 
-            <?php echo date('d/m/Y', strtotime($fecha_inicio)); ?> - <?php echo date('d/m/Y', strtotime($fecha_fin)); ?>
+            <span class="info-label">Búsqueda:</span> 
+            "<?php echo htmlspecialchars($busqueda); ?>"
         </div>
-        <div class="info-row">
-            <span class="info-label">Estatus:</span> 
-            <?php echo $filtro_estatus === 'todos' ? 'Todos' : htmlspecialchars($filtro_estatus); ?>
-        </div>
+        <?php endif; ?>
         <div class="info-row">
             <span class="info-label">Exportado por:</span> 
             <?php echo $nombre_usuario; ?>
@@ -238,7 +185,7 @@ $conn->close();
             <?php echo date('d/m/Y H:i:s'); ?>
         </div>
         <div class="info-row">
-            <span class="info-label">Total Bienes:</span> 
+            <span class="info-label">Total Categorías:</span> 
             <?php echo count($resultados); ?>
         </div>
     </div>
@@ -247,47 +194,40 @@ $conn->close();
         <table>
             <thead>
                 <tr>
-                    <th style="width: 25px;">Nº</th>
-                    <th style="width: 60px;">Código</th>
-                    <th style="width: 100px;">Descripción</th>
-                    <th style="width: 50px;">Marca</th>
-                    <th style="width: 50px;">Modelo</th>
-                    <th style="width: 55px;">Serial</th>
-                    <th style="width: 70px;">Ubicación</th>
-                    <th style="width: 50px;">Estatus</th>
-                    <th style="width: 60px;">Valor (Bs.)</th>
+                    <th style="width: 40px; text-align: center;">Nº</th>
+                    <th style="width: 50px; text-align: center;">ID</th>
+                    <th style="width: 60px; text-align: center;">Código</th>
+                    <th style="width: 100px;">Nombre</th>
+                    <th style="width: 120px;">Descripción</th>
+                    <th style="width: 80px;">Cuenta Pptaria.</th>
+                    <th style="width: 50px; text-align: center;">Estatus</th>
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($resultados as $bien): ?>
+                <?php foreach ($resultados as $cat): ?>
                 <tr>
-                    <td><?php echo $contador++; ?></td>
-                    <td><?php echo htmlspecialchars($bien['codigo_bien_nacional'] ?? 'N/A'); ?></td>
-                    <td><?php echo htmlspecialchars($bien['descripcion'] ?? 'N/A'); ?></td>
-                    <td><?php echo htmlspecialchars($bien['marca'] ?? 'N/A'); ?></td>
-                    <td><?php echo htmlspecialchars($bien['modelo'] ?? 'N/A'); ?></td>
-                    <td><?php echo htmlspecialchars($bien['serial'] ?? 'N/A'); ?></td>
-                    <td><?php echo htmlspecialchars($bien['ubicacion'] ?? 'No asignada'); ?></td>
-                    <td>
+                    <td class="text-center"><?php echo $contador++; ?></td>
+                    <td class="text-center"><?php echo htmlspecialchars($cat['id'] ?? 'N/A'); ?></td>
+                    <td class="text-center"><strong><?php echo htmlspecialchars($cat['codigo'] ?? $cat['id'] ?? 'N/A'); ?></strong></td>
+                    <td><?php echo htmlspecialchars($cat['nombre'] ?? $cat['denominacion'] ?? 'N/A'); ?></td>
+                    <td><?php echo htmlspecialchars($cat['descripcion'] ?? 'Sin descripción'); ?></td>
+                    <td><?php echo htmlspecialchars($cat['cuenta_presupuestaria'] ?? 'N/A'); ?></td>
+                    <td class="text-center">
                         <?php 
-                            $estatus = strtolower($bien['estatus'] ?? 'desconocido');
-                            $badge_class = 'status-activo';
-                            if (strpos($estatus, 'inactiv') !== false || strpos($estatus, 'baja') !== false) {
-                                $badge_class = 'status-inactivo';
-                            }
+                            $estatus = isset($cat['activo']) ? ($cat['activo'] == 1 ? 'Activo' : 'Inactivo') : 'Activo';
+                            $badge_class = $estatus == 'Activo' ? 'status-activo' : 'status-inactivo';
                         ?>
                         <span class="status-badge <?php echo $badge_class; ?>">
-                            <?php echo htmlspecialchars($bien['estatus'] ?? 'N/A'); ?>
+                            <?php echo htmlspecialchars($estatus); ?>
                         </span>
                     </td>
-                    <td style="text-align: right;"><?php echo isset($bien['valor_original']) ? number_format($bien['valor_original'], 2, ',', '.') : '0,00'; ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
             <tfoot>
                 <tr class="total-row">
-                    <td colspan="8" style="text-align: right; padding: 8px;">TOTAL:</td>
-                    <td style="text-align: right; padding: 8px;"><?php echo number_format($total_valor, 2, ',', '.'); ?> Bs.</td>
+                    <td colspan="6" class="text-right" style="padding: 8px;">TOTAL CATEGORÍAS:</td>
+                    <td class="text-center" style="padding: 8px;"><?php echo count($resultados); ?></td>
                 </tr>
             </tfoot>
         </table>
@@ -325,7 +265,7 @@ $dompdf->setPaper('A4', 'portrait');
 $dompdf->render();
 
 // Generar nombre del archivo
-$nombre_archivo = 'reporte_inventario_' . date('Y-m-d_H-i-s') . '.pdf';
+$nombre_archivo = 'reporte_categorias_' . date('Y-m-d_H-i-s') . '.pdf';
 
 // Enviar al navegador
 header('Content-Type: application/pdf');

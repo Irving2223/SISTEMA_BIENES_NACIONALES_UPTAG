@@ -4,8 +4,10 @@ include('conexion.php');
 
 $busqueda_realizada = false;
 $resultados_bienes = array();
+$historial_movimientos = array();
 $mensaje = '';
 $tipo_mensaje = '';
+$bien_seleccionado = null;
 
 // Obtener filtros para los select
 $estatus = array();
@@ -24,6 +26,24 @@ if ($result_categorias && $result_categorias->num_rows > 0) {
     }
 }
 
+// Obtener lugares/ubicaciones
+$lugares = array();
+$result_lugares = $conn->query("SELECT id, nombre FROM ubicaciones ORDER BY nombre");
+if ($result_lugares && $result_lugares->num_rows > 0) {
+    while ($row = $result_lugares->fetch_assoc()) {
+        $lugares[] = $row;
+    }
+}
+
+// Obtener dependencias
+$dependencias = array();
+$result_dependencias = $conn->query("SELECT id, nombre FROM dependencias ORDER BY nombre");
+if ($result_dependencias && $result_dependencias->num_rows > 0) {
+    while ($row = $result_dependencias->fetch_assoc()) {
+        $dependencias[] = $row;
+    }
+}
+
 // Procesar búsqueda
 if (isset($_GET['buscar'])) {
     $busqueda_realizada = true;
@@ -32,6 +52,10 @@ if (isset($_GET['buscar'])) {
     $codigo_bien = trim($_GET['codigo_bien'] ?? '');
     $filtro_estatus = $_GET['estatus'] ?? '';
     $filtro_categoria = $_GET['categoria'] ?? '';
+    $filtro_lugar = $_GET['lugar'] ?? '';
+    $filtro_dependencia = $_GET['dependencia'] ?? '';
+    $buscar_todo_lugar = isset($_GET['buscar_todo_lugar']);
+    $buscar_todo_dependencia = isset($_GET['buscar_todo_dependencia']);
     
     try {
         // Construir consulta base
@@ -106,10 +130,62 @@ if (isset($_GET['buscar'])) {
             $types .= 'i';
         }
         
-        // Nota: Los filtros de ubicación, dependencia y tipo_adquisicion 
-        // están disponibles en las tablas relacionadas pero no en la tabla bienes directamente
+        // Filtro por lugar/ubicación
+        if (!empty($filtro_lugar)) {
+            // Verificar si la columna ubicacion_id existe
+            $check_col = $conn->query("SHOW COLUMNS FROM bienes LIKE 'ubicacion_id'");
+            if ($check_col && $check_col->num_rows > 0) {
+                if ($buscar_todo_lugar) {
+                    $sql .= " AND b.ubicacion_id IN (
+                        SELECT id FROM ubicaciones WHERE id = ? OR ubicacion_padre_id = ?
+                    )";
+                    $params[] = $filtro_lugar;
+                    $params[] = $filtro_lugar;
+                    $types .= 'ii';
+                } else {
+                    $sql .= " AND b.ubicacion_id = ?";
+                    $params[] = $filtro_lugar;
+                    $types .= 'i';
+                }
+            }
+        }
         
-        $sql .= " ORDER BY b.id DESC LIMIT 100";
+        // Filtro por dependencia
+        if (!empty($filtro_dependencia)) {
+            // Verificar si la columna dependencia_id existe
+            $check_col = $conn->query("SHOW COLUMNS FROM bienes LIKE 'dependencia_id'");
+            if ($check_col && $check_col->num_rows > 0) {
+                if ($buscar_todo_dependencia) {
+                    $sql .= " AND b.dependencia_id IN (
+                        SELECT id FROM dependencias WHERE id = ? OR dependencia_padre_id = ?
+                    )";
+                    $params[] = $filtro_dependencia;
+                    $params[] = $filtro_dependencia;
+                    $types .= 'ii';
+                } else {
+                    $sql .= " AND b.dependencia_id = ?";
+                    $params[] = $filtro_dependencia;
+                    $types .= 'i';
+                }
+            }
+        }
+        
+        $sql .= " ORDER BY b.id DESC LIMIT 200";
+        
+        // Guardar parámetros para PDF
+        $_SESSION['busqueda_params'] = [
+            'termino' => $termino,
+            'codigo_bien' => $codigo_bien,
+            'estatus' => $filtro_estatus,
+            'categoria' => $filtro_categoria,
+            'lugar' => $filtro_lugar,
+            'dependencia' => $filtro_dependencia,
+            'buscar_todo_lugar' => $buscar_todo_lugar,
+            'buscar_todo_dependencia' => $buscar_todo_dependencia,
+            'sql' => $sql,
+            'params' => $params,
+            'types' => $types
+        ];
         
         // Ejecutar consulta
         if (!empty($params)) {
@@ -130,6 +206,30 @@ if (isset($_GET['buscar'])) {
             if ($result && $result->num_rows > 0) {
                 while ($row = $result->fetch_assoc()) {
                     $resultados_bienes[] = $row;
+                }
+            }
+        }
+        
+        // Si se encontró un único bien por código, obtener su historial de movimientos
+        if (!empty($codigo_bien) && count($resultados_bienes) == 1) {
+            $bien_seleccionado = $resultados_bienes[0];
+            $bien_id = $bien_seleccionado['id'];
+            
+            // Verificar si la tabla movimientos existe
+            $check_movimientos = $conn->query("SHOW TABLES LIKE 'movimientos'");
+            if ($check_movimientos->num_rows > 0) {
+                $sql_movimientos = "SELECT * FROM movimientos WHERE bien_id = ? ORDER BY fecha_movimiento DESC LIMIT 50";
+                $stmt_mov = $conn->prepare($sql_movimientos);
+                if ($stmt_mov) {
+                    $stmt_mov->bind_param("i", $bien_id);
+                    $stmt_mov->execute();
+                    $result_mov = $stmt_mov->get_result();
+                    if ($result_mov && $result_mov->num_rows > 0) {
+                        while ($row = $result_mov->fetch_assoc()) {
+                            $historial_movimientos[] = $row;
+                        }
+                    }
+                    $stmt_mov->close();
                 }
             }
         }
@@ -205,7 +305,47 @@ if (isset($_GET['buscar'])) {
                         </select>
                     </div>
                 </div>
-                <div class="field-row" style="margin-top: 15px;">>
+                <div class="field-row" style="margin-top: 15px;">
+                    <div class="field-col">
+                        <label for="lugar" class="field-label">Lugar/Ubicación</label>
+                        <select id="lugar" name="lugar" class="form-control">
+                            <option value="">Todos los lugares</option>
+                            <?php foreach ($lugares as $l): ?>
+                                <option value="<?= $l['id']; ?>" <?= ($_GET['lugar'] ?? '') == $l['id'] ? 'selected' : ''; ?>>
+                                    <?= htmlspecialchars($l['nombre']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="field-col">
+                        <label for="dependencia" class="field-label">Dependencia</label>
+                        <select id="dependencia" name="dependencia" class="form-control">
+                            <option value="">Todas las dependencias</option>
+                            <?php foreach ($dependencias as $dep): ?>
+                                <option value="<?= $dep['id']; ?>" <?= ($_GET['dependencia'] ?? '') == $dep['id'] ? 'selected' : ''; ?>>
+                                    <?= htmlspecialchars($dep['nombre']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row" style="margin-top: 15px;">
+                    <div class="field-col" style="flex: 100%;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="buscar_todo_lugar" name="buscar_todo_lugar" value="1" <?= isset($_GET['buscar_todo_lugar']) ? 'checked' : ''; ?>>
+                            <span>Incluir sub-ubicaciones del lugar seleccionado</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="field-row" style="margin-top: 10px;">
+                    <div class="field-col" style="flex: 100%;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="buscar_todo_dependencia" name="buscar_todo_dependencia" value="1" <?= isset($_GET['buscar_todo_dependencia']) ? 'checked' : ''; ?>>
+                            <span>Incluir sub-dependencias de la dependencia seleccionada</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="field-row" style="margin-top: 15px;">
                     <div class="field-col">
                         <a href="buscar.php" class="btn btn-secondary" style="margin-right: 10px;">
                             <i class="zmdi zmdi-refresh"></i> Limpiar Filtros
@@ -225,6 +365,29 @@ if (isset($_GET['buscar'])) {
         <?php endif; ?>
         
         <?php if (!empty($resultados_bienes)): ?>
+            <!-- Botón Exportar PDF -->
+            <div class="section-container" style="background-color: #e3f2fd; border: 2px solid #2196f3;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h4 style="margin: 0; color: #1976d2;">
+                        <i class="zmdi zmdi-download"></i> Exportar Resultados
+                    </h4>
+                    <form action="generar_reporte_inventario.php" method="POST" target="_blank">
+                        <input type="hidden" name="busqueda_personalizada" value="1">
+                        <input type="hidden" name="termino" value="<?= htmlspecialchars($_GET['termino_busqueda'] ?? ''); ?>">
+                        <input type="hidden" name="codigo_bien" value="<?= htmlspecialchars($_GET['codigo_bien'] ?? ''); ?>">
+                        <input type="hidden" name="estatus" value="<?= htmlspecialchars($_GET['estatus'] ?? ''); ?>">
+                        <input type="hidden" name="categoria" value="<?= htmlspecialchars($_GET['categoria'] ?? ''); ?>">
+                        <input type="hidden" name="lugar" value="<?= htmlspecialchars($_GET['lugar'] ?? ''); ?>">
+                        <input type="hidden" name="dependencia" value="<?= htmlspecialchars($_GET['dependencia'] ?? ''); ?>">
+                        <input type="hidden" name="buscar_todo_lugar" value="<?= isset($_GET['buscar_todo_lugar']) ? '1' : ''; ?>">
+                        <input type="hidden" name="buscar_todo_dependencia" value="<?= isset($_GET['buscar_todo_dependencia']) ? '1' : ''; ?>">
+                        <button type="submit" class="btn btn-primary" style="background-color: #2196f3;">
+                            <i class="zmdi zmdi-file-pdf"></i> Descargar PDF
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
             <!-- Resultados de búsqueda -->
             <div class="section-container">
                 <h2 class="section-title">Resultados de Búsqueda (<?= count($resultados_bienes); ?> bienes encontrados)</h2>
@@ -284,8 +447,8 @@ if (isset($_GET['buscar'])) {
                                         <?= htmlspecialchars($bien['categoria_nombre'] ?? 'Sin categoría'); ?>
                                     </td>
                                     <td style="padding:14px 15px; border-bottom:1px solid #eee;">
-                                        <span style="background:<?= $bien['estatus_id'] == 4 ? '#f8d7da' : '#d4edda'; ?>; 
-                                              color:<?= $bien['estatus_id'] == 4 ? '#721c24' : '#155724'; ?>; 
+                                        <span style="background:<?= $bien['estatus_id'] == 4 ? '#f8d7da' : '#d4edda' ?>; 
+                                              color:<?= $bien['estatus_id'] == 4 ? '#721c24' : '#155724' ?>; 
                                               padding:4px 8px; border-radius:4px; font-size:0.8rem; font-weight:600;">
                                             <?= htmlspecialchars($bien['estatus_nombre'] ?? 'Sin estatus'); ?>
                                         </span>
@@ -299,6 +462,52 @@ if (isset($_GET['buscar'])) {
                     </table>
                 </div>
             </div>
+            
+            <!-- Historial de Movimientos -->
+            <?php if ($bien_seleccionado && !empty($historial_movimientos)): ?>
+            <div class="section-container" style="background-color: #fff3e0; border: 2px solid #ff6600;">
+                <h2 class="section-title" style="color: #ff6600;">
+                    <i class="zmdi zmdi-timeRestore"></i> Historial de Movimientos
+                </h2>
+                <p style="margin-bottom: 15px;">
+                    <strong>Bien:</strong> <?= htmlspecialchars($bien_seleccionado['codigo_bien_nacional']); ?> - 
+                    <?= htmlspecialchars($bien_seleccionado['descripcion']); ?>
+                </p>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr style="background:#ff6600; color:white;">
+                                <th style="padding:12px 15px; text-align:left;">Fecha</th>
+                                <th style="padding:12px 15px; text-align:left;">Tipo de Movimiento</th>
+                                <th style="padding:12px 15px; text-align:left;">Responsable</th>
+                                <th style="padding:12px 15px; text-align:left;">Motivo</th>
+                                <th style="padding:12px 15px; text-align:left;">Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($historial_movimientos as $mov): ?>
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:10px 15px;"><?= htmlspecialchars($mov['fecha_movimiento'] ?? 'N/A'); ?></td>
+                                <td style="padding:10px 15px; font-weight:600; color:#ff6600;">
+                                    <?= htmlspecialchars(ucfirst(str_replace('_', ' ', $mov['tipo_movimiento'] ?? 'N/A'))); ?>
+                                </td>
+                                <td style="padding:10px 15px;"><?= htmlspecialchars($mov['responsable'] ?? 'N/A'); ?></td>
+                                <td style="padding:10px 15px;"><?= htmlspecialchars($mov['motivo'] ?? 'N/A'); ?></td>
+                                <td style="padding:10px 15px;"><?= htmlspecialchars($mov['observaciones'] ?? 'N/A'); ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <?php elseif ($bien_seleccionado): ?>
+            <div class="section-container" style="background-color: #e8f5e9; border: 2px solid #4caf50;">
+                <h2 class="section-title" style="color: #4caf50;">
+                    <i class="zmdi zmdi-check-circle"></i> Sin Movimientos
+                </h2>
+                <p>El bien <strong><?= htmlspecialchars($bien_seleccionado['codigo_bien_nacional']); ?></strong> no tiene movimientos registrados.</p>
+            </div>
+            <?php endif; ?>
         <?php endif; ?>
     <?php else: ?>
         <!-- Mensaje inicial -->
@@ -322,4 +531,3 @@ if (isset($_GET['buscar'])) {
 	<script>
 		$.material.init();
 	</script>
-

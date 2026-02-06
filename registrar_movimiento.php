@@ -49,14 +49,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
             if ($result_check->num_rows === 0) {
                 throw new Exception("No se encontró ningún bien con el código: $codigo_bien");
             }
+            
             $bien = $result_check->fetch_assoc();
             $bien_id = $bien['id'];
             $stmt_check->close();
             
-            // Validaciones según el tipo de movimiento
+            // Validaciones específicas por tipo de movimiento
             if ($tipo_movimiento === 'traslado') {
                 if (empty($ubicacion_destino_id)) {
-                    throw new Exception("Para un traslado debe seleccionar la ubicación de destino.");
+                    throw new Exception("Debe seleccionar la ubicación de destino para un traslado.");
                 }
                 if ($ubicacion_destino_id == $ubicacion_origen_id) {
                     throw new Exception("La ubicación de origen y destino no pueden ser iguales.");
@@ -67,21 +68,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
                 }
             }
             
-            // Insertar el movimiento
-            $stmt = $conn->prepare("INSERT INTO movimientos_bienes(bien_id, tipo_movimiento, ubicacion_origen_id, ubicacion_destino_id, estatus_origen_id, estatus_destino_id, fecha_movimiento, responsable, motivo, observaciones, usuario_cedula, fecha_registro) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-            $stmt->bind_param("issiiisssss", 
-                $bien_id,
-                $tipo_movimiento,
-                $ubicacion_origen_id,
-                $ubicacion_destino_id,
-                $estatus_origen_id,
-                $estatus_destino_id,
-                $fecha_movimiento,
-                $responsable,
-                $motivo,
-                $observaciones,
-                $_SESSION['usuario']['cedula']
-            );
+            // Verificar qué columnas existen en la tabla movimientos
+            $columnas_movimientos = [];
+            $result_cols = $conn->query("SHOW COLUMNS FROM movimientos");
+            while ($row = $result_cols->fetch_assoc()) {
+                $columnas_movimientos[] = $row['Field'];
+            }
+            
+            // Construir consulta de inserción dinámicamente
+            $sql = "INSERT INTO movimientos (bien_id, tipo_movimiento, fecha_movimiento";
+            $values = "?, ?, ?";
+            $params = [$bien_id, $tipo_movimiento, $fecha_movimiento];
+            $types = "iss";
+            
+            // Agregar columnas opcionales si existen
+            if (in_array('responsable', $columnas_movimientos)) {
+                $sql .= ", responsable";
+                $values .= ", ?";
+                $params[] = $responsable;
+                $types .= "s";
+            }
+            
+            if (in_array('motivo', $columnas_movimientos)) {
+                $sql .= ", motivo";
+                $values .= ", ?";
+                $params[] = $motivo;
+                $types .= "s";
+            }
+            
+            if (in_array('observaciones', $columnas_movimientos)) {
+                $sql .= ", observaciones";
+                $values .= ", ?";
+                $params[] = $observaciones;
+                $types .= "s";
+            }
+            
+            if (in_array('usuario_cedula', $columnas_movimientos)) {
+                $sql .= ", usuario_cedula";
+                $values .= ", ?";
+                $params[] = $_SESSION['usuario']['cedula'];
+                $types .= "s";
+            }
+            
+            $sql .= ") VALUES ($values)";
+            
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param($types, ...$params);
             
             if (!$stmt->execute()) {
                 throw new Exception("Error al registrar el movimiento: " . $stmt->error);
@@ -89,8 +121,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
             $movimiento_id = $conn->insert_id;
             $stmt->close();
             
+            // Verificar qué columnas existen en la tabla bienes
+            $columnas_bienes = [];
+            $result_cols = $conn->query("SHOW COLUMNS FROM bienes");
+            while ($row = $result_cols->fetch_assoc()) {
+                $columnas_bienes[] = $row['Field'];
+            }
+            
             // Actualizar la ubicación del bien si es un traslado
-            if ($tipo_movimiento === 'traslado' && !empty($ubicacion_destino_id)) {
+            if ($tipo_movimiento === 'traslado' && !empty($ubicacion_destino_id) && in_array('ubicacion_id', $columnas_bienes)) {
                 $stmt_update = $conn->prepare("UPDATE bienes SET ubicacion_id = ? WHERE id = ?");
                 $stmt_update->bind_param("ii", $ubicacion_destino_id, $bien_id);
                 $stmt_update->execute();
@@ -98,38 +137,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
             }
             
             // Actualizar el estatus del bien si es cambio de estatus o desincorporación
-            if (in_array($tipo_movimiento, ['cambio_estatus', 'desincorporacion']) && !empty($estatus_destino_id)) {
+            if (in_array($tipo_movimiento, ['cambio_estatus', 'desincorporacion']) && !empty($estatus_destino_id) && in_array('estatus_id', $columnas_bienes)) {
                 $stmt_update = $conn->prepare("UPDATE bienes SET estatus_id = ? WHERE id = ?");
                 $stmt_update->bind_param("ii", $estatus_destino_id, $bien_id);
                 $stmt_update->execute();
                 $stmt_update->close();
             }
             
-            // Si es desincorporación, registrar en tabla de desincorporados
-            if ($tipo_movimiento === 'desincorporacion' && !empty($estatus_destino_id)) {
-                // Verificar si existe tabla de desincorporados
-                $stmt_check_table = $conn->query("SHOW TABLES LIKE 'bienes_desincorporados'");
-                if ($stmt_check_table->num_rows > 0) {
-                    $stmt_desinc = $conn->prepare("INSERT INTO bienes_desincorporados(bien_id, motivo, fecha_desincorporacion, usuario_cedula) VALUES (?, ?, ?, ?)");
-                    $stmt_desinc->bind_param("isss", $bien_id, $motivo, $fecha_movimiento, $_SESSION['usuario']['cedula']);
-                    $stmt_desinc->execute();
-                    $stmt_desinc->close();
-                }
-            }
-            
-            // Registrar en auditoría
-            $cedula_usuario = $_SESSION['usuario']['cedula'] ?? 'SISTEMA';
-            $stmt_auditoria = $conn->prepare("INSERT INTO auditoria(usuario_cedula, accion, tabla_afectada, registro_afectado, detalle, fecha_accion) VALUES (?, 'Registro', 'movimientos_bienes', ?, ?, NOW())");
-            $tipo_movimiento_display = str_replace('_', ' ', strtoupper($tipo_movimiento));
-            $detalle = "Registro de Movimiento: $tipo_movimiento_display - Bien: $codigo_bien";
-            $stmt_auditoria->bind_param("sss", $cedula_usuario, $movimiento_id, $detalle);
-            $stmt_auditoria->execute();
-            $stmt_auditoria->close();
-            
             $conn->commit();
             
+            $tipo_movimiento_display = str_replace('_', ' ', strtoupper($tipo_movimiento));
             $mensaje = "Movimiento '$tipo_movimiento_display' registrado correctamente para el bien: $codigo_bien";
             $tipo_mensaje = "success";
+            
+            // Guardar datos para PDF
+            $_SESSION['ultimo_movimiento'] = [
+                'id' => $movimiento_id,
+                'codigo_bien' => $codigo_bien,
+                'tipo_movimiento' => $tipo_movimiento_display,
+                'fecha_movimiento' => $fecha_movimiento,
+                'responsable' => $responsable,
+                'motivo' => $motivo,
+                'observaciones' => $observaciones,
+                'ubicacion_origen' => $bien_seleccionado['ubicacion_actual'] ?? 'N/A',
+                'ubicacion_destino' => '',
+                'estatus_origen' => $bien_seleccionado['estatus_actual'] ?? 'N/A',
+                'estatus_destino' => ''
+            ];
             
             // Limpiar selección
             $bien_seleccionado = null;
@@ -224,42 +258,51 @@ if (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])) {
     }
 }
 
-// Obtener datos para dropdowns
+// Obtener datos para los dropdowns
 $ubicaciones = [];
+$dependencias = [];
+$categorias = [];
 $estatus = [];
-$movimientos_recientes = [];
 
-// Verificar si las tablas existen antes de consultar
-function tablaExiste($conn, $nombre_tabla) {
-    $result = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($nombre_tabla) . "'");
-    return $result && $result->num_rows > 0;
-}
-
-// Ubicaciones
-if (tablaExiste($conn, 'ubicaciones')) {
-    $result_ubicaciones = $conn->query("SELECT id, nombre FROM ubicaciones WHERE activo = 1 ORDER BY nombre");
-    if ($result_ubicaciones) {
-        $ubicaciones = $result_ubicaciones->fetch_all(MYSQLI_ASSOC);
+try {
+    function tablaExiste($conn, $nombre_tabla) {
+        $result = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($nombre_tabla) . "'");
+        return $result && $result->num_rows > 0;
     }
-}
-
-// Estatus
-if (tablaExiste($conn, 'estatus_bienes')) {
-    $result_estatus = $conn->query("SELECT id, nombre FROM estatus_bienes WHERE activo = 1 ORDER BY nombre");
-    if ($result_estatus) {
-        $estatus = $result_estatus->fetch_all(MYSQLI_ASSOC);
+    
+    // Ubicaciones (PNF, sedes, etc.)
+    if (tablaExiste($conn, 'ubicaciones')) {
+        $result_ubicaciones = $conn->query("SELECT id, nombre FROM ubicaciones WHERE activo = 1 ORDER BY nombre");
+        if ($result_ubicaciones) {
+            $ubicaciones = $result_ubicaciones->fetch_all(MYSQLI_ASSOC);
+        }
     }
-}
-
-// Movimientos recientes
-if (tablaExiste($conn, 'movimientos_bienes') && tablaExiste($conn, 'bienes')) {
-    $result_movimientos = $conn->query("SELECT m.*, b.codigo_bien_nacional 
-                                        FROM movimientos_bienes m 
-                                        JOIN bienes b ON m.bien_id = b.id 
-                                        ORDER BY m.fecha_registro DESC LIMIT 10");
-    if ($result_movimientos) {
-        $movimientos_recientes = $result_movimientos->fetch_all(MYSQLI_ASSOC);
+    
+    // Dependencias
+    if (tablaExiste($conn, 'dependencias')) {
+        $result_dependencias = $conn->query("SELECT id, nombre FROM dependencias WHERE activo = 1 ORDER BY nombre");
+        if ($result_dependencias) {
+            $dependencias = $result_dependencias->fetch_all(MYSQLI_ASSOC);
+        }
     }
+    
+    // Categorías
+    if (tablaExiste($conn, 'categorias')) {
+        $result_categorias = $conn->query("SELECT id, nombre FROM categorias WHERE activo = 1 ORDER BY nombre");
+        if ($result_categorias) {
+            $categorias = $result_categorias->fetch_all(MYSQLI_ASSOC);
+        }
+    }
+    
+    // Estatus
+    if (tablaExiste($conn, 'estatus_bienes')) {
+        $result_estatus = $conn->query("SELECT id, nombre FROM estatus_bienes WHERE activo = 1 ORDER BY nombre");
+        if ($result_estatus) {
+            $estatus = $result_estatus->fetch_all(MYSQLI_ASSOC);
+        }
+    }
+} catch (Exception $e) {
+    // Si las tablas no existen
 }
 ?>
 
@@ -286,6 +329,13 @@ if (tablaExiste($conn, 'movimientos_bienes') && tablaExiste($conn, 'bienes')) {
             <div class="alert alert-<?= $tipo_mensaje == 'error' ? 'danger' : ($tipo_mensaje == 'info' ? 'warning' : 'success'); ?>" style="margin: 20px;">
                 <?= htmlspecialchars($mensaje); ?>
             </div>
+            <?php if ($tipo_mensaje == 'success' && isset($_SESSION['ultimo_movimiento'])): ?>
+                <div style="margin: 20px; text-align: center;">
+                    <a href="pdf_movimiento.php" target="_blank" class="btn btn-primary" style="background-color: #ff6600; border-color: #ff6600;">
+                        <i class="zmdi zmdi-download"></i> Descargar PDF del Movimiento
+                    </a>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
 
         <!-- Búsqueda de Bien -->
@@ -298,59 +348,62 @@ if (tablaExiste($conn, 'movimientos_bienes') && tablaExiste($conn, 'bienes')) {
                            placeholder="Ej: BN-2026-0001" maxlength="50" class="form-control" 
                            value="<?= isset($_GET['codigo_bien']) ? htmlspecialchars($_GET['codigo_bien']) : ''; ?>" />
                 </div>
-                <div class="field-col" style="flex: 0 0 auto;">
-                    <button type="submit" name="buscar" value="1" class="btn btn-primary">
+                <div class="field-col" style="flex: 0.5;">
+                    <button type="submit" name="buscar" value="1" class="btn btn-primary" style="width: 100%;">
                         <i class="zmdi zmdi-search"></i> Buscar
                     </button>
                 </div>
             </form>
-            
-            <?php if ($bien_seleccionado): ?>
-                <div style="background-color: #e8f5e9; border: 2px solid #4caf50; border-radius: 8px; padding: 15px; margin-top: 15px;">
-                    <h5 style="margin: 0 0 10px 0; color: #2e7d32;">
-                        <i class="zmdi zmdi-check-circle"></i> Bien Encontrado
-                    </h5>
-                    <div class="field-row">
-                        <div class="field-col">
-                            <strong>Código:</strong> <?= htmlspecialchars($bien_seleccionado['codigo_bien_nacional']); ?>
-                        </div>
-                        <div class="field-col">
-                            <strong>Descripción:</strong> <?= htmlspecialchars($bien_seleccionado['descripcion']); ?>
-                        </div>
+        </div>
+
+        <!-- Información del Bien Encontrado -->
+        <div class="container">
+        <?php if ($bien_seleccionado): ?>
+            <div style="background-color: #e8f5e9; border: 2px solid #4caf50; border-radius: 8px; padding: 15px; margin-top: 15px;">
+                <h5 style="margin: 0 0 10px 0; color: #2e7d32;">
+                    <i class="zmdi zmdi-check-circle"></i> Bien Encontrado
+                </h5>
+                <div class="field-row">
+                    <div class="field-col">
+                        <strong>Código:</strong> <?= htmlspecialchars($bien_seleccionado['codigo_bien_nacional']); ?>
                     </div>
-                    <div class="field-row">
-                        <div class="field-col">
-                            <strong>Marca:</strong> <?= htmlspecialchars($bien_seleccionado['marca'] ?: 'N/A'); ?>
-                        </div>
-                        <div class="field-col">
-                            <strong>Modelo:</strong> <?= htmlspecialchars($bien_seleccionado['modelo'] ?: 'N/A'); ?>
-                        </div>
-                    </div>
-                    <div class="field-row">
-                        <div class="field-col">
-                            <strong>Ubicación Actual:</strong> <?= htmlspecialchars($bien_seleccionado['ubicacion_actual'] ?: 'No asignada'); ?>
-                        </div>
-                        <div class="field-col">
-                            <strong>Estatus Actual:</strong> <?= htmlspecialchars($bien_seleccionado['estatus_actual'] ?: 'No asignado'); ?>
-                        </div>
-                    </div>
-                    <div class="field-row">
-                        <div class="field-col">
-                            <strong>Dependencia:</strong> <?= htmlspecialchars($bien_seleccionado['dependencia'] ?: 'N/A'); ?>
-                        </div>
-                        <div class="field-col">
-                            <strong>Categoría:</strong> <?= htmlspecialchars($bien_seleccionado['categoria'] ?: 'N/A'); ?>
-                        </div>
+                    <div class="field-col">
+                        <strong>Descripción:</strong> <?= htmlspecialchars($bien_seleccionado['descripcion']); ?>
                     </div>
                 </div>
-            <?php elseif (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])): ?>
-                <div style="background-color: #ffebee; border: 2px solid #f44336; border-radius: 8px; padding: 15px; margin-top: 15px;">
-                    <h5 style="margin: 0; color: #c62828;">
-                        <i class="zmdi zmdi-error"></i> Bien no encontrado
-                    </h5>
-                    <p style="margin: 10px 0 0 0;">No se encontró ningún bien con el código: <?= htmlspecialchars($_GET['codigo_bien']); ?></p>
+                <div class="field-row">
+                    <div class="field-col">
+                        <strong>Marca:</strong> <?= htmlspecialchars($bien_seleccionado['marca'] ?: 'N/A'); ?>
+                    </div>
+                    <div class="field-col">
+                        <strong>Modelo:</strong> <?= htmlspecialchars($bien_seleccionado['modelo'] ?: 'N/A'); ?>
+                    </div>
                 </div>
-            <?php endif; ?>
+                <div class="field-row">
+                    <div class="field-col">
+                        <strong>Ubicación Actual:</strong> <?= htmlspecialchars($bien_seleccionado['ubicacion_actual'] ?? 'No asignada'); ?>
+                    </div>
+                    <div class="field-col">
+                        <strong>Estatus Actual:</strong> <?= htmlspecialchars($bien_seleccionado['estatus_actual'] ?? 'No asignado'); ?>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <div class="field-col">
+                        <strong>Dependencia:</strong> <?= htmlspecialchars($bien_seleccionado['dependencia'] ?? 'N/A'); ?>
+                    </div>
+                    <div class="field-col">
+                        <strong>Categoría:</strong> <?= htmlspecialchars($bien_seleccionado['categoria'] ?? 'N/A'); ?>
+                    </div>
+                </div>
+            </div>
+        <?php elseif (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])): ?>
+            <div style="background-color: #ffebee; border: 2px solid #f44336; border-radius: 8px; padding: 15px; margin-top: 15px;">
+                <h5 style="margin: 0; color: #c62828;">
+                    <i class="zmdi zmdi-error"></i> Bien no encontrado
+                </h5>
+                <p style="margin: 10px 0 0 0;">No se encontró ningún bien con el código: <?= htmlspecialchars($_GET['codigo_bien']); ?></p>
+            </div>
+        <?php endif; ?>
         </div>
 
         <!-- Formulario para Registrar Movimiento -->
@@ -367,16 +420,13 @@ if (tablaExiste($conn, 'movimientos_bienes') && tablaExiste($conn, 'bienes')) {
             <div class="field-row">
                 <div class="field-col">
                     <label for="tipo_movimiento" class="field-label required">Tipo de Movimiento</label>
-                    <select name="tipo_movimiento" id="tipo_movimiento" class="form-control" required onchange="mostrarCamposMovimiento()">
-                        <option value="">Seleccione un tipo...</option>
-                        <option value="traslado">Traslado de Ubicación</option>
-                        <option value="cambio_estatus">Cambio de Estatus</option>
-                        <option value="mantenimiento">Envío a Mantenimiento</option>
-                        <option value="reparacion">Envío a Reparación</option>
-                        <option value="desincorporacion">Desincorporación</option>
+                    <select name="tipo_movimiento" id="tipo_movimiento" class="form-control" required onchange="toggleFields()">
+                        <option value="">Seleccionar...</option>
+                        <option value="traslado">Traslado</option>
                         <option value="prestamo">Préstamo</option>
-                        <option value="devolucion">Devolución</option>
-                        <option value="otro">Otro</option>
+                        <option value="cambio_estatus">Cambio de Estatus</option>
+                        <option value="mantenimiento">Mantenimiento</option>
+                        <option value="desincorporacion">Desincorporación</option>
                     </select>
                 </div>
                 <div class="field-col">
@@ -385,54 +435,41 @@ if (tablaExiste($conn, 'movimientos_bienes') && tablaExiste($conn, 'bienes')) {
                 </div>
             </div>
             
-            <!-- Campos para Traslado -->
-            <div id="campos_traslado" class="hidden">
-                <h5 style="color: #ff6600; margin: 20px 0 15px 0;">Datos del Traslado</h5>
-                <div class="field-row">
-                    <div class="field-col">
-                        <label for="ubicacion_destino_id" class="field-label required">Ubicación de Destino</label>
-                        <select name="ubicacion_destino_id" id="ubicacion_destino_id" class="form-control">
-                            <option value="">Seleccione la ubicación destino...</option>
-                            <?php foreach ($ubicaciones as $ubicacion): ?>
-                                <option value="<?= $ubicacion['id']; ?>"><?= htmlspecialchars($ubicacion['nombre']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <?php if (empty($ubicaciones)): ?>
-                            <small style="color: #999;">No hay ubicaciones registradas</small>
-                        <?php endif; ?>
-                    </div>
+            <!-- Ubicación de Destino (para traslado) -->
+            <div class="field-row" id="ubicacion_destino_container" style="display: none;">
+                <div class="field-col">
+                    <label for="ubicacion_destino_id" class="field-label required">Ubicación de Destino</label>
+                    <select name="ubicacion_destino_id" id="ubicacion_destino_id" class="form-control">
+                        <option value="">Seleccionar...</option>
+                        <?php foreach ($ubicaciones as $ubic): ?>
+                            <option value="<?= $ubic['id']; ?>"><?= htmlspecialchars($ubic['nombre']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
             </div>
             
-            <!-- Campos para Cambio de Estatus -->
-            <div id="campos_estatus" class="hidden">
-                <h5 style="color: #ff6600; margin: 20px 0 15px 0;">Cambio de Estatus</h5>
-                <div class="field-row">
-                    <div class="field-col">
-                        <label for="estatus_destino_id" class="field-label required">Nuevo Estatus</label>
-                        <select name="estatus_destino_id" id="estatus_destino_id" class="form-control">
-                            <option value="">Seleccione el nuevo estatus...</option>
-                            <?php foreach ($estatus as $est): ?>
-                                <option value="<?= $est['id']; ?>"><?= htmlspecialchars($est['nombre']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
+            <!-- Estatus de Destino (para cambio de estatus) -->
+            <div class="field-row" id="estatus_destino_container" style="display: none;">
+                <div class="field-col">
+                    <label for="estatus_destino_id" class="field-label required">Nuevo Estatus</label>
+                    <select name="estatus_destino_id" id="estatus_destino_id" class="form-control">
+                        <option value="">Seleccionar...</option>
+                        <?php foreach ($estatus as $est): ?>
+                            <option value="<?= $est['id']; ?>"><?= htmlspecialchars($est['nombre']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
             </div>
             
             <!-- Responsable y Motivo -->
             <div class="field-row">
                 <div class="field-col">
-                    <label for="responsable" class="field-label">Responsable del Movimiento</label>
-                    <input type="text" name="responsable" id="responsable" 
-                           placeholder="Nombre de quien realiza/mueve el bien" 
-                           maxlength="150" class="form-control" />
+                    <label for="responsable" class="field-label">Responsable</label>
+                    <input type="text" name="responsable" id="responsable" placeholder="Nombre del responsable" class="form-control" />
                 </div>
                 <div class="field-col">
-                    <label for="motivo" class="field-label">Motivo/Razón</label>
-                    <input type="text" name="motivo" id="motivo" 
-                           placeholder="Razón del movimiento" 
-                           maxlength="255" class="form-control" />
+                    <label for="motivo" class="field-label">Motivo</label>
+                    <input type="text" name="motivo" id="motivo" placeholder="Motivo del movimiento" class="form-control" />
                 </div>
             </div>
             
@@ -440,9 +477,7 @@ if (tablaExiste($conn, 'movimientos_bienes') && tablaExiste($conn, 'bienes')) {
             <div class="field-row">
                 <div class="field-col" style="flex: 100%;">
                     <label for="observaciones" class="field-label">Observaciones</label>
-                    <textarea name="observaciones" id="observaciones" rows="3" 
-                              placeholder="Detalles adicionales sobre el movimiento..." 
-                              class="form-control" style="width: 100%;"></textarea>
+                    <textarea name="observaciones" id="observaciones" rows="3" placeholder="Observaciones adicionales..." class="form-control" style="width: 100%;"></textarea>
                 </div>
             </div>
             
@@ -465,20 +500,20 @@ if (tablaExiste($conn, 'movimientos_bienes') && tablaExiste($conn, 'bienes')) {
             <div style="overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse;">
                     <thead>
-                        <tr style="background-color: #f5f5f5;">
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Fecha</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Código Bien</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Tipo</th>
-                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Responsable</th>
+                        <tr style="background-color: #ff6600; color: white;">
+                            <th style="padding: 10px; text-align: left;">Fecha</th>
+                            <th style="padding: 10px; text-align: left;">Código Bien</th>
+                            <th style="padding: 10px; text-align: left;">Tipo</th>
+                            <th style="padding: 10px; text-align: left;">Responsable</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($movimientos_recientes as $mov): ?>
                         <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 12px;"><?= date('d/m/Y', strtotime($mov['fecha_movimiento'])); ?></td>
-                            <td style="padding: 12px;"><?= htmlspecialchars($mov['codigo_bien_nacional']); ?></td>
-                            <td style="padding: 12px;"><?= htmlspecialchars(str_replace('_', ' ', ucfirst($mov['tipo_movimiento']))); ?></td>
-                            <td style="padding: 12px;"><?= htmlspecialchars($mov['responsable'] ?: 'N/A'); ?></td>
+                            <td style="padding: 10px;"><?= htmlspecialchars($mov['fecha_movimiento']); ?></td>
+                            <td style="padding: 10px;"><?= htmlspecialchars($mov['codigo_bien_nacional']); ?></td>
+                            <td style="padding: 10px;"><?= htmlspecialchars($mov['tipo_movimiento']); ?></td>
+                            <td style="padding: 10px;"><?= htmlspecialchars($mov['responsable'] ?? 'N/A'); ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -487,18 +522,17 @@ if (tablaExiste($conn, 'movimientos_bienes') && tablaExiste($conn, 'bienes')) {
         </div>
         <?php endif; ?>
         
-        <!-- Información adicional -->
+        <!-- Información -->
         <div class="section-container" style="background-color: #fff3e0;">
             <h4 class="section-title" style="color: #ff6600;">
                 <i class="zmdi zmdi-info-outline"></i> Información sobre Movimientos
             </h4>
             <ul style="margin: 0; padding-left: 20px; color: #333;">
-                <li style="margin-bottom: 8px;"><strong>Traslado:</strong> Mover un bien de una ubicación a otra dentro de la universidad.</li>
-                <li style="margin-bottom: 8px;"><strong>Cambio de Estatus:</strong> Actualizar el estado del bien (ej: activo, dañado, en reparación).</li>
-                <li style="margin-bottom: 8px;"><strong>Mantenimiento/Reparación:</strong> Enviar el bien a servicio técnico.</li>
-                <li style="margin-bottom: 8px;"><strong>Desincorporación:</strong> Dar de baja un bien que ya no es útil o está dañado.</li>
-                <li style="margin-bottom: 8px;"><strong>Préstamo/Devolución:</strong> Registrar bienes prestados o devueltos.</li>
-                <li><strong>Historial:</strong> Todos los movimientos quedan registrados para trazabilidad.</li>
+                <li style="margin-bottom: 8px;"><strong>Traslado:</strong> Cambio de ubicación física del bien.</li>
+                <li style="margin-bottom: 8px;"><strong>Préstamo:</strong> Salida temporal del bien de las instalaciones.</li>
+                <li style="margin-bottom: 8px;"><strong>Cambio de Estatus:</strong> Modificación del estado del bien (activo, mantenimiento, etc.).</li>
+                <li style="margin-bottom: 8px;"><strong>Mantenimiento:</strong> Envío a reparación o mantenimiento externo.</li>
+                <li><strong>Desincorporación:</strong> Baja definitiva del bien del inventario.</li>
             </ul>
         </div>
     </div>
@@ -508,6 +542,34 @@ if (tablaExiste($conn, 'movimientos_bienes') && tablaExiste($conn, 'bienes')) {
     <script src="js/jquery-3.1.1.min.js"></script>
     <script src="js/bootstrap.min.js"></script>
     <script>
+        function toggleFields() {
+            const tipo = document.getElementById('tipo_movimiento').value;
+            const ubicacionDestino = document.getElementById('ubicacion_destino_container');
+            const estatusDestino = document.getElementById('estatus_destino_container');
+            
+            ubicacionDestino.style.display = 'none';
+            estatusDestino.style.display = 'none';
+            
+            if (tipo === 'traslado') {
+                ubicacionDestino.style.display = 'flex';
+            } else if (tipo === 'cambio_estatus' || tipo === 'desincorporacion') {
+                estatusDestino.style.display = 'flex';
+            }
+        }
+        
+        document.getElementById('form-registrar-movimiento')?.addEventListener('submit', function(e) {
+            const tipo = document.getElementById('tipo_movimiento').value;
+            const fecha = document.getElementById('fecha_movimiento').value;
+            
+            if (!tipo || !fecha) {
+                e.preventDefault();
+                alert('Por favor, complete todos los campos obligatorios.');
+                return false;
+            }
+            
+            return true;
+        });
+        
         // Establecer fecha actual por defecto
         document.addEventListener('DOMContentLoaded', function() {
             const fechaInput = document.getElementById('fecha_movimiento');
@@ -517,55 +579,11 @@ if (tablaExiste($conn, 'movimientos_bienes') && tablaExiste($conn, 'bienes')) {
                 fechaInput.max = today;
             }
         });
-        
-        // Mostrar campos según tipo de movimiento
-        function mostrarCamposMovimiento() {
-            const tipo = document.getElementById('tipo_movimiento').value;
-            const camposTraslado = document.getElementById('campos_traslado');
-            const camposEstatus = document.getElementById('campos_estatus');
-            
-            // Ocultar todos primero
-            camposTraslado.classList.add('hidden');
-            camposEstatus.classList.add('hidden');
-            
-            // Mostrar según tipo
-            if (tipo === 'traslado') {
-                camposTraslado.classList.remove('hidden');
-            } else if (tipo === 'cambio_estatus' || tipo === 'desincorporacion') {
-                camposEstatus.classList.remove('hidden');
-            }
-        }
-        
-        // Validación del formulario
-        document.getElementById('form-registrar-movimiento')?.addEventListener('submit', function(e) {
-            const tipoMovimiento = document.getElementById('tipo_movimiento').value;
-            const fecha = document.getElementById('fecha_movimiento').value;
-            
-            if (!tipoMovimiento) {
-                e.preventDefault();
-                alert('Por favor, seleccione el tipo de movimiento.');
-                document.getElementById('tipo_movimiento').focus();
-                return false;
-            }
-            
-            if (!fecha) {
-                e.preventDefault();
-                alert('Por favor, seleccione la fecha del movimiento.');
-                document.getElementById('fecha_movimiento').focus();
-                return false;
-            }
-            
-            return true;
-        });
     </script>
-    
-    <style>
-        .hidden {
-            display: none;
-        }
-    </style>
 </body>
 </html>
+
+
 
 	<!-- Scripts -->
 	<script src="./js/jquery-3.1.1.min.js"></script>

@@ -168,9 +168,178 @@ try {
             }
         }
     }
+    
+    // Procesar búsqueda personalizada desde buscar.php
+    if (isset($_POST['busqueda_personalizada'])) {
+        $termino = $_POST['termino'] ?? '';
+        $codigo_bien = $_POST['codigo_bien'] ?? '';
+        $filtro_estatus = $_POST['estatus'] ?? '';
+        $filtro_categoria = $_POST['categoria'] ?? '';
+        $filtro_ubicacion = $_POST['lugar'] ?? '';
+        $filtro_dependencia = $_POST['dependencia'] ?? '';
+        $buscar_todo_lugar = isset($_POST['buscar_todo_lugar']);
+        $buscar_todo_dependencia = isset($_POST['buscar_todo_dependencia']);
+        
+        // Construir consulta
+        $sql = "SELECT b.* FROM bienes b WHERE b.activo = 1";
+        $params = [];
+        $types = '';
+        
+        // Filtro por término de búsqueda
+        if (!empty($termino)) {
+            $sql .= " AND (b.codigo_bien_nacional LIKE ? OR b.descripcion LIKE ? OR b.marca LIKE ? OR b.modelo LIKE ? OR b.serial LIKE ? OR b.observaciones LIKE ?)";
+            $like_termino = "%$termino%";
+            $params = array_merge($params, array_fill(0, 6, $like_termino));
+            $types .= 'ssssss';
+        }
+        
+        // Filtro por código de bien
+        if (!empty($codigo_bien)) {
+            $sql .= " AND b.codigo_bien_nacional = ?";
+            $params[] = $codigo_bien;
+            $types .= 's';
+        }
+        
+        // Filtro por estatus
+        if (!empty($filtro_estatus)) {
+            $sql .= " AND b.estatus_id = ?";
+            $params[] = $filtro_estatus;
+            $types .= 'i';
+        }
+        
+        // Filtro por categoría
+        if (!empty($filtro_categoria)) {
+            $sql .= " AND b.categoria_id = ?";
+            $params[] = $filtro_categoria;
+            $types .= 'i';
+        }
+        
+        // Filtro por ubicación/lugar
+        if (!empty($filtro_ubicacion)) {
+            // Verificar si la columna ubicacion_id existe
+            $check_col = $conn->query("SHOW COLUMNS FROM bienes LIKE 'ubicacion_id'");
+            if ($check_col && $check_col->num_rows > 0) {
+                if ($buscar_todo_lugar && tablaExiste($conn, 'ubicaciones')) {
+                    $sql .= " AND b.ubicacion_id IN (SELECT id FROM ubicaciones WHERE id = ? OR ubicacion_padre_id = ?)";
+                    $params[] = $filtro_ubicacion;
+                    $params[] = $filtro_ubicacion;
+                    $types .= 'ii';
+                } else {
+                    $sql .= " AND b.ubicacion_id = ?";
+                    $params[] = $filtro_ubicacion;
+                    $types .= 'i';
+                }
+            }
+        }
+        
+        // Filtro por dependencia
+        if (!empty($filtro_dependencia)) {
+            // Verificar si la columna dependencia_id existe
+            $check_col = $conn->query("SHOW COLUMNS FROM bienes LIKE 'dependencia_id'");
+            if ($check_col && $check_col->num_rows > 0) {
+                if ($buscar_todo_dependencia && tablaExiste($conn, 'dependencias')) {
+                    $sql .= " AND b.dependencia_id IN (SELECT id FROM dependencias WHERE id = ? OR dependencia_padre_id = ?)";
+                    $params[] = $filtro_dependencia;
+                    $params[] = $filtro_dependencia;
+                    $types .= 'ii';
+                } else {
+                    $sql .= " AND b.dependencia_id = ?";
+                    $params[] = $filtro_dependencia;
+                    $types .= 'i';
+                }
+            }
+        }
+        
+        $sql .= " ORDER BY b.id DESC LIMIT 200";
+        
+        // Ejecutar consulta
+        if (!empty($params)) {
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $result = $stmt->get_result();
+        } else {
+            $result = $conn->query($sql);
+        }
+        
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                // Obtener nombres de tablas relacionadas
+                if (!empty($row['ubicacion_id']) && tablaExiste($conn, 'ubicaciones')) {
+                    $stmt_ubic = $conn->prepare("SELECT nombre FROM ubicaciones WHERE id = ?");
+                    $stmt_ubic->bind_param("i", $row['ubicacion_id']);
+                    $stmt_ubic->execute();
+                    $res_ubic = $stmt_ubic->get_result();
+                    if ($res_ubic->num_rows > 0) {
+                        $ubic = $res_ubic->fetch_assoc();
+                        $row['ubicacion'] = $ubic['nombre'];
+                    }
+                    $stmt_ubic->close();
+                }
+                
+                if (!empty($row['estatus_id']) && tablaExiste($conn, 'estatus_bienes')) {
+                    $stmt_est = $conn->prepare("SELECT nombre FROM estatus_bienes WHERE id = ?");
+                    $stmt_est->bind_param("i", $row['estatus_id']);
+                    $stmt_est->execute();
+                    $res_est = $stmt_est->get_result();
+                    if ($res_est->num_rows > 0) {
+                        $est = $res_est->fetch_assoc();
+                        $row['estatus'] = $est['nombre'];
+                    }
+                    $stmt_est->close();
+                }
+                
+                if (!empty($row['categoria_id']) && tablaExiste($conn, 'categorias')) {
+                    $stmt_cat = $conn->prepare("SELECT nombre FROM categorias WHERE id = ?");
+                    $stmt_cat->bind_param("i", $row['categoria_id']);
+                    $stmt_cat->execute();
+                    $res_cat = $stmt_cat->get_result();
+                    if ($res_cat->num_rows > 0) {
+                        $cat = $res_cat->fetch_assoc();
+                        $row['categoria'] = $cat['nombre'];
+                    }
+                    $stmt_cat->close();
+                }
+                
+                if (!empty($row['dependencia_id']) && tablaExiste($conn, 'dependencias')) {
+                    $stmt_dep = $conn->prepare("SELECT nombre FROM dependencias WHERE id = ?");
+                    $stmt_dep->bind_param("i", $row['dependencia_id']);
+                    $stmt_dep->execute();
+                    $res_dep = $stmt_dep->get_result();
+                    if ($res_dep->num_rows > 0) {
+                        $dep = $res_dep->fetch_assoc();
+                        $row['dependencia'] = $dep['nombre'];
+                    }
+                    $stmt_dep->close();
+                }
+                
+                $resultados[] = $row;
+            }
+            if (!empty($params)) {
+                $stmt->close();
+            }
+        }
+        
+        $mostrar_tabla = true;
+        
+        if (empty($resultados)) {
+            $mensaje = "No se encontraron bienes con los filtros seleccionados.";
+            $tipo_mensaje = "info";
+        } else {
+            $mensaje = "Se encontraron " . count($resultados) . " bienes.";
+            $tipo_mensaje = "success";
+        }
+    }
+    
 } catch (Exception $e) {
     $mensaje = "Error: " . $e->getMessage();
     $tipo_mensaje = "error";
+}
+
+// Calcular totales
+$total_valor = 0;
+foreach ($resultados as $bien) {
+    $total_valor += $bien['valor_original'] ?? 0;
 }
 ?>
 
@@ -234,7 +403,7 @@ try {
                 <div class="field-col">
                     <label for="filtro_ubicacion" class="field-label">Ubicación</label>
                     <select name="filtro_ubicacion" id="filtro_ubicacion" class="form-control">
-                        <option value="todas">Todas las ubicaciones</option>
+                        <option value="todos">Todas las ubicaciones</option>
                         <?php foreach ($ubicaciones as $ubic): ?>
                             <option value="<?= $ubic['id']; ?>" <?= (isset($_POST['filtro_ubicacion']) && $_POST['filtro_ubicacion'] == $ubic['id']) ? 'selected' : ''; ?>>
                                 <?= htmlspecialchars($ubic['nombre']); ?>
@@ -245,7 +414,7 @@ try {
                 <div class="field-col">
                     <label for="filtro_categoria" class="field-label">Categoría</label>
                     <select name="filtro_categoria" id="filtro_categoria" class="form-control">
-                        <option value="todas">Todas las categorías</option>
+                        <option value="todos">Todas las categorías</option>
                         <?php foreach ($categorias as $cat): ?>
                             <option value="<?= $cat['id']; ?>" <?= (isset($_POST['filtro_categoria']) && $_POST['filtro_categoria'] == $cat['id']) ? 'selected' : ''; ?>>
                                 <?= htmlspecialchars($cat['nombre']); ?>
@@ -268,8 +437,20 @@ try {
 
         <!-- Resultados -->
         <?php if ($mostrar_tabla && !empty($resultados)): ?>
+        <!-- Estadísticas -->
+        <div class="stats-container" style="display: flex; gap: 20px; margin-bottom: 20px;">
+            <div class="stat-box" style="flex: 1; background-color: #fff3e0; border: 2px solid #ff6600; border-radius: 8px; padding: 20px; text-align: center;">
+                <h3 style="margin: 0; color: #e65100; font-size: 28px;"><?php echo count($resultados); ?></h3>
+                <p style="margin: 5px 0 0 0; color: #666;">Total Bienes</p>
+            </div>
+            <div class="stat-box" style="flex: 1; background-color: #fff3e0; border: 2px solid #ff6600; border-radius: 8px; padding: 20px; text-align: center;">
+                <h3 style="margin: 0; color: #e65100; font-size: 28px;"><?php echo number_format($total_valor, 2, ',', '.'); ?> Bs.</h3>
+                <p style="margin: 5px 0 0 0; color: #666;">Valor Total</p>
+            </div>
+        </div>
+        
         <div class="section-container">
-            <h4 class="section-title">Resultados de la Búsqueda (<?= count($resultados); ?> bienes)</h4>
+            <h4 class="section-title">Resultados de la Búsqueda (<?php echo count($resultados); ?> bienes)</h4>
             
             <div style="overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse;">
@@ -283,7 +464,7 @@ try {
                             <th style="padding: 12px; text-align: left; border: 1px solid #e65100;">Serial</th>
                             <th style="padding: 12px; text-align: left; border: 1px solid #e65100;">Ubicación</th>
                             <th style="padding: 12px; text-align: left; border: 1px solid #e65100;">Estatus</th>
-                            <th style="padding: 12px; text-align: left; border: 1px solid #e65100;">Valor</th>
+                            <th style="padding: 12px; text-align: right; border: 1px solid #e65100;">Valor (Bs.)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -301,17 +482,23 @@ try {
                                     <?= htmlspecialchars($bien['estatus'] ?? 'N/A'); ?>
                                 </span>
                             </td>
-                            <td style="padding: 10px;"><?= isset($bien['valor_original']) ? number_format($bien['valor_original'], 2, ',', '.') : '0,00'; ?></td>
+                            <td style="padding: 10px; text-align: right; font-weight: bold;"><?= isset($bien['valor_original']) ? number_format($bien['valor_original'], 2, ',', '.') : '0,00'; ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
+                    <tfoot>
+                        <tr style="background-color: #fff3e0; font-weight: bold;">
+                            <td colspan="8" style="padding: 10px; text-align: right;">TOTAL:</td>
+                            <td style="padding: 10px; text-align: right;"><?= number_format($total_valor, 2, ',', '.'); ?> Bs.</td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
             
             <!-- Botón para generar PDF -->
             <form action="reporte_inventario.php" method="POST" target="_blank" style="margin-top: 20px; text-align: right;">
-                <input type="hidden" name="fecha_inicio" value="<?= $_POST['fecha_inicio']; ?>">
-                <input type="hidden" name="fecha_fin" value="<?= $_POST['fecha_fin']; ?>">
+                <input type="hidden" name="fecha_inicio" value="<?= $_POST['fecha_inicio'] ?? ''; ?>">
+                <input type="hidden" name="fecha_fin" value="<?= $_POST['fecha_fin'] ?? ''; ?>">
                 <input type="hidden" name="filtro_estatus" value="<?= $_POST['filtro_estatus'] ?? 'todos'; ?>">
                 <input type="hidden" name="filtro_ubicacion" value="<?= $_POST['filtro_ubicacion'] ?? 'todos'; ?>">
                 <input type="hidden" name="filtro_categoria" value="<?= $_POST['filtro_categoria'] ?? 'todos'; ?>">
@@ -365,6 +552,7 @@ try {
     </script>
 </body>
 </html>
+
 
 
 	<!-- Scripts -->

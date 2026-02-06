@@ -12,7 +12,7 @@ $tipo_mensaje = '';
 $resultados = [];
 $mostrar_tabla = false;
 
-// Verificar si la tabla movimientos_bienes existe
+// Verificar si la tabla movimientos existe
 function tablaExiste($conn, $nombre_tabla) {
     $result = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($nombre_tabla) . "'");
     return $result && $result->num_rows > 0;
@@ -32,13 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
     } elseif (strtotime($fecha_inicio) > strtotime($fecha_fin)) {
         $mensaje = "La fecha de inicio no puede ser mayor a la fecha fin.";
         $tipo_mensaje = "error";
-    } elseif (!tablaExiste($conn, 'movimientos_bienes')) {
+    } elseif (!tablaExiste($conn, 'movimientos')) {
         $mensaje = "La tabla de movimientos no existe aún. Debe registrar movimientos primero.";
         $tipo_mensaje = "error";
     } else {
         // Construir consulta
-        $sql = "SELECT m.*, b.codigo_bien_nacional FROM movimientos_bienes m 
-                JOIN bienes b ON m.bien_id = b.id 
+        $sql = "SELECT m.*, b.codigo_bien_nacional FROM movimientos m
+                JOIN bienes b ON m.bien_id = b.id
                 WHERE m.fecha_movimiento BETWEEN ? AND ?";
         $params = [];
         $types = 'ss';
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
             $types .= 's';
         }
         
-        $sql .= " ORDER BY m.fecha_movimiento DESC, m.fecha_registro DESC";
+        $sql .= " ORDER BY m.fecha_movimiento DESC";
         
         // Ejecutar consulta
         $stmt = $conn->prepare($sql);
@@ -322,6 +322,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
     </script>
 </body>
 </html>
+
+
 
 	<!-- Scripts -->
 	<script src="./js/jquery-3.1.1.min.js"></script>
