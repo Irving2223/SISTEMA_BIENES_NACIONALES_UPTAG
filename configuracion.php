@@ -1,11 +1,14 @@
 <?php
+// Verificar sesión activa
+
+
 // Incluir el header ANTES de cualquier salida, pero preparar la exportación primero
 ob_start();
 
 include("header.php");
 
 // Determinar si el usuario es superusuario (Administrador)
-$es_superusuario = ($_SESSION['usuario']['rol'] === 'Administrador');
+$es_superusuario = (strtolower(trim($_SESSION['usuario']['rol'] ?? '')) === 'administrador');
 $clase_contenedor = $es_superusuario ? '' : 'normal-user';
 
 // Manejar la exportación de la base de datos ANTES de que se genere cualquier contenido visible
@@ -15,13 +18,6 @@ if (isset($_POST['exportar_datos'])) {
         ob_end_clean();
     }
     
-    // Verificar nuevamente que el usuario sea administrador
-    if (!isset($_SESSION['usuario']) || $_SESSION['usuario']['rol'] !== 'Administrador') {
-        http_response_code(403);
-        echo "Acceso denegado.";
-        exit();
-    }
-
     include("conexion.php");
     
     $nombre_db = 'bienes_nacionales_uptag'; // Nombre de tu base de datos
@@ -119,8 +115,8 @@ if (isset($_POST['exportar_datos'])) {
         </div>
     </div>
 
-    <!-- Copias de Seguridad -->
-    <div class="section-container">
+    <!-- Copias de Seguridad (solo superusuario) -->
+    <div class="section-container superuser-only">
         <h3 class="section-title">
             <i class="fas fa-database"></i> Copias de Seguridad
         </h3>
@@ -135,8 +131,8 @@ if (isset($_POST['exportar_datos'])) {
         </div>
     </div>
 
-        <!-- Copias de Seguridad -->
-    <div class="section-container">
+        <!-- Soporte Técnico (solo superusuario) -->
+    <div class="section-container superuser-only">
         <h3 class="section-title">
             <i class="fas fa-database"></i> Soporte Técnico
         </h3>

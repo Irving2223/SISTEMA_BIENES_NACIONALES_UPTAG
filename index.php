@@ -46,9 +46,9 @@
         <ul>
           <li><a href="#Inicio" class="active">Inicio</a></li>
           <li><a href="#¿Quienes somos?">¿Quiénes somos?</a></li>
-          <li><a href="#mision">Mision</a></li>
+          <!-- <li><a href="#mision">Mision</a></li>
           <li><a href="#Vision">Vision</a></li>
-          <li><a href="#valores">Valores</a></li>
+          <li><a href="#valores">Valores</a></li> -->
           </ul>
     
       </nav>

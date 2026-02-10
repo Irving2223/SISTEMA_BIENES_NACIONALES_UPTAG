@@ -324,11 +324,11 @@ $categorias_json = json_encode($resultados, JSON_HEX_APOS | JSON_HEX_QUOT);
         <!-- Información -->
         <div class="info-box">
             <h5><i class="zmdi zmdi-info-outline"></i> Información</h5>
-            <ul>
+            <div>
                 <li><strong>Búsqueda:</strong> Escriba en el campo de arriba para filtrar cualquier dato de la tabla.</li>
                 <li><strong>PDF:</strong> Descargue un reporte con las categorías visibles o use el buscador primero.</li>
                 <li><strong>Total:</strong> El sistema tiene <strong><?php echo count($resultados); ?></strong> categorías registradas.</li>
-            </ul>
+                        </div>
         </div>
     </div>
 

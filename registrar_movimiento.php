@@ -19,18 +19,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
         if ($_POST['accion'] === 'registrar_movimiento') {
             // Obtener datos del formulario
             $codigo_bien = trim($_POST['codigo_bien'] ?? '');
+            $bien_id = (int)($_POST['bien_id'] ?? 0);
             $tipo_movimiento = $_POST['tipo_movimiento'] ?? '';
-            $ubicacion_origen_id = $_POST['ubicacion_origen_id'] ?? null;
-            $ubicacion_destino_id = $_POST['ubicacion_destino_id'] ?? null;
-            $estatus_origen_id = $_POST['estatus_origen_id'] ?? null;
-            $estatus_destino_id = $_POST['estatus_destino_id'] ?? null;
+            $ubicacion_origen_id = (int)($_POST['ubicacion_origen_id'] ?? 0);
+            $ubicacion_destino_id = (int)($_POST['ubicacion_destino_id'] ?? 0);
+            $responsable_origen_id = (int)($_POST['responsable_origen_id'] ?? 0);
+            $responsable_destino_id = (int)($_POST['responsable_destino_id'] ?? 0);
             $fecha_movimiento = $_POST['fecha_movimiento'] ?? '';
-            $responsable = trim($_POST['responsable'] ?? '');
-            $motivo = trim($_POST['motivo'] ?? '');
+            $razon = trim($_POST['razon'] ?? '');
+            $numero_documento = trim($_POST['numero_documento'] ?? '');
             $observaciones = trim($_POST['observaciones'] ?? '');
             
             // Validaciones
-            if (empty($codigo_bien)) {
+            if (empty($codigo_bien) && $bien_id <= 0) {
                 throw new Exception("Debe buscar y seleccionar un bien.");
             }
             if (empty($tipo_movimiento)) {
@@ -40,32 +41,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
                 throw new Exception("La fecha del movimiento es obligatoria.");
             }
             
-            // Verificar que el bien existe
-            $stmt_check = $conn->prepare("SELECT * FROM bienes WHERE codigo_bien_nacional = ?");
-            $stmt_check->bind_param("s", $codigo_bien);
-            $stmt_check->execute();
-            $result_check = $stmt_check->get_result();
-            
-            if ($result_check->num_rows === 0) {
-                throw new Exception("No se encontró ningún bien con el código: $codigo_bien");
-            }
-            
-            $bien = $result_check->fetch_assoc();
-            $bien_id = $bien['id'];
-            $stmt_check->close();
-            
-            // Validaciones específicas por tipo de movimiento
-            if ($tipo_movimiento === 'traslado') {
-                if (empty($ubicacion_destino_id)) {
-                    throw new Exception("Debe seleccionar la ubicación de destino para un traslado.");
+            // Obtener bien_id si solo tenemos el código
+            if ($bien_id <= 0) {
+                $stmt_check = $conn->prepare("SELECT id FROM bienes WHERE codigo_bien_nacional = ?");
+                $stmt_check->bind_param("s", $codigo_bien);
+                $stmt_check->execute();
+                $result_check = $stmt_check->get_result();
+                
+                if ($result_check->num_rows === 0) {
+                    throw new Exception("No se encontró ningún bien con el código: $codigo_bien");
                 }
-                if ($ubicacion_destino_id == $ubicacion_origen_id) {
-                    throw new Exception("La ubicación de origen y destino no pueden ser iguales.");
-                }
-            } elseif (in_array($tipo_movimiento, ['cambio_estatus', 'desincorporacion'])) {
-                if (empty($estatus_destino_id)) {
-                    throw new Exception("Debe seleccionar el nuevo estatus.");
-                }
+                
+                $bien_data = $result_check->fetch_assoc();
+                $bien_id = $bien_data['id'];
+                $stmt_check->close();
             }
             
             // Verificar qué columnas existen en la tabla movimientos
@@ -75,40 +64,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
                 $columnas_movimientos[] = $row['Field'];
             }
             
-            // Construir consulta de inserción dinámicamente
-            $sql = "INSERT INTO movimientos (bien_id, tipo_movimiento, fecha_movimiento";
-            $values = "?, ?, ?";
-            $params = [$bien_id, $tipo_movimiento, $fecha_movimiento];
-            $types = "iss";
+            // Construir consulta de inserción con todos los campos
+            $razon_final = !empty($razon) ? $razon : 'Movimiento registrado sin razón específica';
             
-            // Agregar columnas opcionales si existen
-            if (in_array('responsable', $columnas_movimientos)) {
-                $sql .= ", responsable";
-                $values .= ", ?";
-                $params[] = $responsable;
-                $types .= "s";
+            // Verificar si el usuario existe en la tabla usuarios
+            $usuario_registro = $_SESSION['usuario']['cedula'] ?? $_SESSION['usuario']['id'] ?? null;
+            if ($usuario_registro) {
+                $check_usuario = $conn->prepare("SELECT cedula FROM usuarios WHERE cedula = ?");
+                $check_usuario->bind_param("s", $usuario_registro);
+                $check_usuario->execute();
+                $res_usuario = $check_usuario->get_result();
+                if ($res_usuario->num_rows === 0) {
+                    $usuario_registro = null; // Si no existe, usar NULL
+                }
+                $check_usuario->close();
             }
             
-            if (in_array('motivo', $columnas_movimientos)) {
-                $sql .= ", motivo";
-                $values .= ", ?";
-                $params[] = $motivo;
-                $types .= "s";
-            }
-            
-            if (in_array('observaciones', $columnas_movimientos)) {
-                $sql .= ", observaciones";
-                $values .= ", ?";
-                $params[] = $observaciones;
-                $types .= "s";
-            }
-            
-            if (in_array('usuario_cedula', $columnas_movimientos)) {
-                $sql .= ", usuario_cedula";
-                $values .= ", ?";
-                $params[] = $_SESSION['usuario']['cedula'];
-                $types .= "s";
-            }
+            $sql = "INSERT INTO movimientos (bien_id, tipo_movimiento, ubicacion_origen_id, ubicacion_destino_id, responsable_origen_id, responsable_destino_id, fecha_movimiento, razon, numero_documento, observaciones, usuario_registro, fecha_creacion";
+            $values = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW()";
+            $params = [
+                $bien_id,
+                $tipo_movimiento,
+                $ubicacion_origen_id > 0 ? $ubicacion_origen_id : null,
+                $ubicacion_destino_id > 0 ? $ubicacion_destino_id : null,
+                $responsable_origen_id > 0 ? $responsable_origen_id : null,
+                $responsable_destino_id > 0 ? $responsable_destino_id : null,
+                $fecha_movimiento,
+                $razon_final,
+                !empty($numero_documento) ? $numero_documento : null,
+                !empty($observaciones) ? $observaciones : null,
+                $usuario_registro
+            ];
+            $types = "iiiiissssss";
             
             $sql .= ") VALUES ($values)";
             
@@ -129,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
             }
             
             // Actualizar la ubicación del bien si es un traslado
-            if ($tipo_movimiento === 'traslado' && !empty($ubicacion_destino_id) && in_array('ubicacion_id', $columnas_bienes)) {
+            if ($tipo_movimiento === 'traslado' && $ubicacion_destino_id > 0 && in_array('ubicacion_id', $columnas_bienes)) {
                 $stmt_update = $conn->prepare("UPDATE bienes SET ubicacion_id = ? WHERE id = ?");
                 $stmt_update->bind_param("ii", $ubicacion_destino_id, $bien_id);
                 $stmt_update->execute();
@@ -137,17 +124,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
             }
             
             // Actualizar el estatus del bien si es cambio de estatus o desincorporación
-            if (in_array($tipo_movimiento, ['cambio_estatus', 'desincorporacion']) && !empty($estatus_destino_id) && in_array('estatus_id', $columnas_bienes)) {
-                $stmt_update = $conn->prepare("UPDATE bienes SET estatus_id = ? WHERE id = ?");
-                $stmt_update->bind_param("ii", $estatus_destino_id, $bien_id);
-                $stmt_update->execute();
-                $stmt_update->close();
+            if (in_array($tipo_movimiento, ['cambio_estatus', 'desincorporacion'])) {
+                $nuevo_estatus = 0;
+                switch ($tipo_movimiento) {
+                    case 'desincorporacion':
+                        $nuevo_estatus = 4;
+                        break;
+                    case 'cambio_estatus':
+                        $nuevo_estatus = (int)($_POST['estatus_destino_id'] ?? 0);
+                        break;
+                }
+                if ($nuevo_estatus > 0 && in_array('estatus_id', $columnas_bienes)) {
+                    $stmt_update = $conn->prepare("UPDATE bienes SET estatus_id = ? WHERE id = ?");
+                    $stmt_update->bind_param("ii", $nuevo_estatus, $bien_id);
+                    $stmt_update->execute();
+                    $stmt_update->close();
+                }
             }
             
             $conn->commit();
             
             $tipo_movimiento_display = str_replace('_', ' ', strtoupper($tipo_movimiento));
-            $mensaje = "Movimiento '$tipo_movimiento_display' registrado correctamente para el bien: $codigo_bien";
+            $mensaje = "Movimiento '$tipo_movimiento_display' registrado correctamente. ID: $movimiento_id";
             $tipo_mensaje = "success";
             
             // Guardar datos para PDF
@@ -156,16 +154,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
                 'codigo_bien' => $codigo_bien,
                 'tipo_movimiento' => $tipo_movimiento_display,
                 'fecha_movimiento' => $fecha_movimiento,
-                'responsable' => $responsable,
-                'motivo' => $motivo,
-                'observaciones' => $observaciones,
-                'ubicacion_origen' => $bien_seleccionado['ubicacion_actual'] ?? 'N/A',
-                'ubicacion_destino' => '',
-                'estatus_origen' => $bien_seleccionado['estatus_actual'] ?? 'N/A',
-                'estatus_destino' => ''
+                'ubicacion_origen_id' => $ubicacion_origen_id,
+                'ubicacion_destino_id' => $ubicacion_destino_id,
+                'responsable_origen_id' => $responsable_origen_id,
+                'responsable_destino_id' => $responsable_destino_id,
+                'razon' => $razon,
+                'numero_documento' => $numero_documento,
+                'observaciones' => $observaciones
             ];
             
-            // Limpiar selección
             $bien_seleccionado = null;
         }
         
@@ -180,13 +177,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion'])) {
 if (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])) {
     $codigo_buscar = trim($_GET['codigo_bien']);
     try {
-        // Primero verificar si la tabla bienes existe
         $check_table = $conn->query("SHOW TABLES LIKE 'bienes'");
         if ($check_table->num_rows === 0) {
             throw new Exception("La tabla 'bienes' no existe en la base de datos.");
         }
         
-        // Query simplificado sin subqueries para evitar errores si las tablas no existen
         $stmt = $conn->prepare("SELECT * FROM bienes WHERE codigo_bien_nacional = ?");
         $stmt->bind_param("s", $codigo_buscar);
         $stmt->execute();
@@ -194,9 +189,7 @@ if (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])) {
         if ($result->num_rows > 0) {
             $bien_seleccionado = $result->fetch_assoc();
             
-            // Obtener nombres de tablas relacionadas si existen
             try {
-                // Ubicación actual
                 if (!empty($bien_seleccionado['ubicacion_id'])) {
                     $stmt_ubic = $conn->prepare("SELECT nombre FROM ubicaciones WHERE id = ?");
                     $stmt_ubic->bind_param("i", $bien_seleccionado['ubicacion_id']);
@@ -209,9 +202,8 @@ if (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])) {
                     $stmt_ubic->close();
                 }
                 
-                // Estatus actual
                 if (!empty($bien_seleccionado['estatus_id'])) {
-                    $stmt_est = $conn->prepare("SELECT nombre FROM estatus_bienes WHERE id = ?");
+                    $stmt_est = $conn->prepare("SELECT nombre FROM estatus WHERE id = ?");
                     $stmt_est->bind_param("i", $bien_seleccionado['estatus_id']);
                     $stmt_est->execute();
                     $res_est = $stmt_est->get_result();
@@ -222,7 +214,6 @@ if (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])) {
                     $stmt_est->close();
                 }
                 
-                // Categoría
                 if (!empty($bien_seleccionado['categoria_id'])) {
                     $stmt_cat = $conn->prepare("SELECT nombre FROM categorias WHERE id = ?");
                     $stmt_cat->bind_param("i", $bien_seleccionado['categoria_id']);
@@ -234,21 +225,8 @@ if (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])) {
                     }
                     $stmt_cat->close();
                 }
-                
-                // Dependencia
-                if (!empty($bien_seleccionado['dependencia_id'])) {
-                    $stmt_dep = $conn->prepare("SELECT nombre FROM dependencias WHERE id = ?");
-                    $stmt_dep->bind_param("i", $bien_seleccionado['dependencia_id']);
-                    $stmt_dep->execute();
-                    $res_dep = $stmt_dep->get_result();
-                    if ($res_dep->num_rows > 0) {
-                        $dep = $res_dep->fetch_assoc();
-                        $bien_seleccionado['dependencia'] = $dep['nombre'];
-                    }
-                    $stmt_dep->close();
-                }
             } catch (Exception $e) {
-                // Ignorar errores de tablas relacionadas
+                // Ignorar errores
             }
         }
         $stmt->close();
@@ -260,9 +238,9 @@ if (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])) {
 
 // Obtener datos para los dropdowns
 $ubicaciones = [];
-$dependencias = [];
 $categorias = [];
 $estatus = [];
+$responsables = [];
 
 try {
     function tablaExiste($conn, $nombre_tabla) {
@@ -270,23 +248,13 @@ try {
         return $result && $result->num_rows > 0;
     }
     
-    // Ubicaciones (PNF, sedes, etc.)
     if (tablaExiste($conn, 'ubicaciones')) {
-        $result_ubicaciones = $conn->query("SELECT id, nombre FROM ubicaciones WHERE activo = 1 ORDER BY nombre");
+        $result_ubicaciones = $conn->query("SELECT id, nombre, descripcion FROM ubicaciones WHERE activo = 1 ORDER BY nombre");
         if ($result_ubicaciones) {
             $ubicaciones = $result_ubicaciones->fetch_all(MYSQLI_ASSOC);
         }
     }
     
-    // Dependencias
-    if (tablaExiste($conn, 'dependencias')) {
-        $result_dependencias = $conn->query("SELECT id, nombre FROM dependencias WHERE activo = 1 ORDER BY nombre");
-        if ($result_dependencias) {
-            $dependencias = $result_dependencias->fetch_all(MYSQLI_ASSOC);
-        }
-    }
-    
-    // Categorías
     if (tablaExiste($conn, 'categorias')) {
         $result_categorias = $conn->query("SELECT id, nombre FROM categorias WHERE activo = 1 ORDER BY nombre");
         if ($result_categorias) {
@@ -294,16 +262,25 @@ try {
         }
     }
     
-    // Estatus
-    if (tablaExiste($conn, 'estatus_bienes')) {
-        $result_estatus = $conn->query("SELECT id, nombre FROM estatus_bienes WHERE activo = 1 ORDER BY nombre");
+    if (tablaExiste($conn, 'estatus')) {
+        $result_estatus = $conn->query("SELECT id, nombre FROM estatus WHERE activo = 1 ORDER BY nombre");
         if ($result_estatus) {
             $estatus = $result_estatus->fetch_all(MYSQLI_ASSOC);
         }
     }
-} catch (Exception $e) {
-    // Si las tablas no existen
-}
+    
+    if (tablaExiste($conn, 'responsables')) {
+        $result_resp = $conn->query("SELECT id, nombre, cedula FROM responsables WHERE activo = 1 ORDER BY nombre");
+        if ($result_resp) {
+            $responsables = $result_resp->fetch_all(MYSQLI_ASSOC);
+        }
+    } elseif (tablaExiste($conn, 'personas')) {
+        $result_resp = $conn->query("SELECT id, nombre, cedula FROM personas ORDER BY nombre");
+        if ($result_resp) {
+            $responsables = $result_resp->fetch_all(MYSQLI_ASSOC);
+        }
+    }
+} catch (Exception $e) {}
 ?>
 
 <!DOCTYPE html>
@@ -315,23 +292,65 @@ try {
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/estilos_sistema.css">
     <link rel="stylesheet" href="css/material-design-iconic-font.min.css">
+    <link href="assets/img/LOGO INTI.png" rel="icon">
+    
+    <style>
+        .form-section {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+        }
+        .form-section-title {
+            font-weight: 800;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .form-section-title i { color: #ff6600; }
+        .required-field::after { content: " *"; color: red; }
+        .form-control:focus { border-color: #ff6600; box-shadow: 0 0 0 3px rgba(255,102,0,0.1); }
+        .btn-primary {
+            background: linear-gradient(135deg, #ff6600 0%, #ff8533 100%);
+            border: none;
+            font-weight: 700;
+            padding: 12px 30px;
+            border-radius: 8px;
+        }
+        .btn-primary:hover { background: linear-gradient(135deg, #ff8533 0%, #ff6600 100%); }
+        .hero-header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            padding: 40px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            color: white;
+        }
+        .hero-header h1 { font-family: 'Montserrat', sans-serif; font-weight: 900; margin: 0; }
+        .hero-header p { opacity: 0.9; margin-top: 10px; }
+        @media (max-width: 768px) { .field-row { flex-direction: column; } }
+    </style>
 </head>
 <body>
     <?php include 'header.php'; ?>
     
     <div class="container">
-        <h1 style="font-weight:900; font-family:montserrat; color:#ff6600; font-size:40px; padding:20px; text-align:left; font-size:50px;">
-            <i class="zmdi zmdi-swap"></i> 
-            Registrar <span style="font-weight:700; color:black;">Movimiento</span>
-        </h1>
+        <div class="hero-header">
+            <h1><i class="zmdi zmdi-swap"></i> Registrar Movimiento</h1>
+            <p>Complete el formulario para registrar un movimiento de bien nacional</p>
+        </div>
 
         <?php if (!empty($mensaje)): ?>
-            <div class="alert alert-<?= $tipo_mensaje == 'error' ? 'danger' : ($tipo_mensaje == 'info' ? 'warning' : 'success'); ?>" style="margin: 20px;">
+            <div class="alert alert-<?= $tipo_mensaje == 'error' ? 'danger' : 'success'; ?>" style="margin: 20px;">
                 <?= htmlspecialchars($mensaje); ?>
             </div>
             <?php if ($tipo_mensaje == 'success' && isset($_SESSION['ultimo_movimiento'])): ?>
                 <div style="margin: 20px; text-align: center;">
-                    <a href="pdf_movimiento.php" target="_blank" class="btn btn-primary" style="background-color: #ff6600; border-color: #ff6600;">
+                    <a href="pdf_movimiento.php" target="_blank" class="btn btn-primary">
                         <i class="zmdi zmdi-download"></i> Descargar PDF del Movimiento
                     </a>
                 </div>
@@ -339,17 +358,17 @@ try {
         <?php endif; ?>
 
         <!-- Búsqueda de Bien -->
-        <div class="section-container">
-            <h4 class="section-title">Buscar Bien Nacional</h4>
+        <div class="form-section">
+            <div class="form-section-title"><i class="zmdi zmdi-search"></i> Buscar Bien Nacional</div>
             <form method="GET" action="" class="field-row" style="align-items: flex-end;">
                 <div class="field-col" style="flex: 2;">
-                    <label for="codigo_bien" class="field-label required">Código de Bien Nacional</label>
+                    <label for="codigo_bien" class="field-label required-field">Código de Bien Nacional</label>
                     <input type="text" name="codigo_bien" id="codigo_bien" 
                            placeholder="Ej: BN-2026-0001" maxlength="50" class="form-control" 
-                           value="<?= isset($_GET['codigo_bien']) ? htmlspecialchars($_GET['codigo_bien']) : ''; ?>" />
+                           value="<?= isset($_GET['codigo_bien']) ? htmlspecialchars($_GET['codigo_bien']) : ''; ?>" required />
                 </div>
-                <div class="field-col" style="flex: 0.5;">
-                    <button type="submit" name="buscar" value="1" class="btn btn-primary" style="width: 100%;">
+                <div class="field-col" style="flex: 0 0 auto;">
+                    <button type="submit" name="buscar" value="1" class="btn btn-primary">
                         <i class="zmdi zmdi-search"></i> Buscar
                     </button>
                 </div>
@@ -357,69 +376,79 @@ try {
         </div>
 
         <!-- Información del Bien Encontrado -->
-        <div class="container">
         <?php if ($bien_seleccionado): ?>
-            <div style="background-color: #e8f5e9; border: 2px solid #4caf50; border-radius: 8px; padding: 15px; margin-top: 15px;">
-                <h5 style="margin: 0 0 10px 0; color: #2e7d32;">
-                    <i class="zmdi zmdi-check-circle"></i> Bien Encontrado
-                </h5>
-                <div class="field-row">
-                    <div class="field-col">
-                        <strong>Código:</strong> <?= htmlspecialchars($bien_seleccionado['codigo_bien_nacional']); ?>
-                    </div>
-                    <div class="field-col">
-                        <strong>Descripción:</strong> <?= htmlspecialchars($bien_seleccionado['descripcion']); ?>
-                    </div>
+        <div class="form-section" style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border: 2px solid #4caf50;">
+            <div class="form-section-title"><i class="zmdi zmdi-check-circle" style="color: #4caf50;"></i> Bien Encontrado</div>
+            <input type="hidden" name="bien_id" id="bien_id" value="<?= $bien_seleccionado['id'] ?>">
+            
+            <div class="field-row">
+                <div class="field-col">
+                    <label class="field-label">Código:</label>
+                    <span style="color: #ff6600; font-weight: 700;"><?= htmlspecialchars($bien_seleccionado['codigo_bien_nacional']); ?></span>
                 </div>
-                <div class="field-row">
-                    <div class="field-col">
-                        <strong>Marca:</strong> <?= htmlspecialchars($bien_seleccionado['marca'] ?: 'N/A'); ?>
-                    </div>
-                    <div class="field-col">
-                        <strong>Modelo:</strong> <?= htmlspecialchars($bien_seleccionado['modelo'] ?: 'N/A'); ?>
-                    </div>
-                </div>
-                <div class="field-row">
-                    <div class="field-col">
-                        <strong>Ubicación Actual:</strong> <?= htmlspecialchars($bien_seleccionado['ubicacion_actual'] ?? 'No asignada'); ?>
-                    </div>
-                    <div class="field-col">
-                        <strong>Estatus Actual:</strong> <?= htmlspecialchars($bien_seleccionado['estatus_actual'] ?? 'No asignado'); ?>
-                    </div>
-                </div>
-                <div class="field-row">
-                    <div class="field-col">
-                        <strong>Dependencia:</strong> <?= htmlspecialchars($bien_seleccionado['dependencia'] ?? 'N/A'); ?>
-                    </div>
-                    <div class="field-col">
-                        <strong>Categoría:</strong> <?= htmlspecialchars($bien_seleccionado['categoria'] ?? 'N/A'); ?>
-                    </div>
+                <div class="field-col">
+                    <label class="field-label">Descripción:</label>
+                    <span><?= htmlspecialchars($bien_seleccionado['descripcion']); ?></span>
                 </div>
             </div>
-        <?php elseif (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])): ?>
-            <div style="background-color: #ffebee; border: 2px solid #f44336; border-radius: 8px; padding: 15px; margin-top: 15px;">
-                <h5 style="margin: 0; color: #c62828;">
-                    <i class="zmdi zmdi-error"></i> Bien no encontrado
-                </h5>
-                <p style="margin: 10px 0 0 0;">No se encontró ningún bien con el código: <?= htmlspecialchars($_GET['codigo_bien']); ?></p>
+            
+            <div class="field-row" style="margin-top: 15px;">
+                <div class="field-col">
+                    <label class="field-label">Marca:</label>
+                    <span><?= htmlspecialchars($bien_seleccionado['marca'] ?: 'N/A'); ?></span>
+                </div>
+                <div class="field-col">
+                    <label class="field-label">Modelo:</label>
+                    <span><?= htmlspecialchars($bien_seleccionado['modelo'] ?: 'N/A'); ?></span>
+                </div>
+                <div class="field-col">
+                    <label class="field-label">Serial:</label>
+                    <span><?= htmlspecialchars($bien_seleccionado['serial'] ?: 'N/A'); ?></span>
+                </div>
             </div>
-        <?php endif; ?>
+            
+            <div class="field-row" style="margin-top: 15px;">
+                <div class="field-col">
+                    <label class="field-label">Ubicación Actual:</label>
+                    <span style="background: #e3f2fd; color: #1565c0; padding: 3px 8px; border-radius: 4px;">
+                        <?= htmlspecialchars($bien_seleccionado['ubicacion_actual'] ?? 'No asignada'); ?>
+                    </span>
+                </div>
+                <div class="field-col">
+                    <label class="field-label">Estatus Actual:</label>
+                    <span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 4px;">
+                        <?= htmlspecialchars($bien_seleccionado['estatus_actual'] ?? 'No asignado'); ?>
+                    </span>
+                </div>
+            </div>
         </div>
+        <?php elseif (isset($_GET['buscar']) && !empty($_GET['codigo_bien'])): ?>
+        <div class="form-section" style="background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%); border: 2px solid #f44336;">
+            <div class="form-section-title" style="color: #c62828;">
+                <i class="zmdi zmdi-error" style="color: #f44336;"></i> Bien no encontrado
+            </div>
+            <p>No se encontró ningún bien con el código: <?= htmlspecialchars($_GET['codigo_bien']); ?></p>
+        </div>
+        <?php endif; ?>
 
         <!-- Formulario para Registrar Movimiento -->
         <?php if ($bien_seleccionado): ?>
-        <form id="form-registrar-movimiento" method="POST" action="" class="section-container">
+        <form id="form-registrar-movimiento" method="POST" action="" class="form-section">
             <input type="hidden" name="accion" value="registrar_movimiento">
             <input type="hidden" name="codigo_bien" value="<?= htmlspecialchars($bien_seleccionado['codigo_bien_nacional']); ?>">
-            <input type="hidden" name="ubicacion_origen_id" value="<?= $bien_seleccionado['ubicacion_id'] ?? ''; ?>">
-            <input type="hidden" name="estatus_origen_id" value="<?= $bien_seleccionado['estatus_id'] ?? ''; ?>">
+            <input type="hidden" name="bien_id" value="<?= $bien_seleccionado['id']; ?>">
+            <input type="hidden" name="ubicacion_origen_id" value="<?= $bien_seleccionado['ubicacion_id'] ?? 0; ?>">
             
-            <h4 class="section-title">Datos del Movimiento</h4>
+            <div class="form-section-title"><i class="zmdi zmdi-swap"></i> Datos del Movimiento</div>
             
-            <!-- Tipo de Movimiento y Fecha -->
+            <!-- Sección: Información Principal -->
+            <div class="form-section-title" style="margin-top: 0; font-size: 1rem; color: #666;">
+                <i class="zmdi zmdi-info"></i> Información Principal
+            </div>
+            
             <div class="field-row">
                 <div class="field-col">
-                    <label for="tipo_movimiento" class="field-label required">Tipo de Movimiento</label>
+                    <label for="tipo_movimiento" class="field-label required-field">Tipo de Movimiento</label>
                     <select name="tipo_movimiento" id="tipo_movimiento" class="form-control" required onchange="toggleFields()">
                         <option value="">Seleccionar...</option>
                         <option value="traslado">Traslado</option>
@@ -427,106 +456,130 @@ try {
                         <option value="cambio_estatus">Cambio de Estatus</option>
                         <option value="mantenimiento">Mantenimiento</option>
                         <option value="desincorporacion">Desincorporación</option>
+                        <option value="incorporacion">Incorporación</option>
                     </select>
                 </div>
                 <div class="field-col">
-                    <label for="fecha_movimiento" class="field-label required">Fecha del Movimiento</label>
+                    <label for="fecha_movimiento" class="field-label required-field">Fecha del Movimiento</label>
                     <input type="date" name="fecha_movimiento" id="fecha_movimiento" class="form-control" required />
+                </div>
+                <div class="field-col">
+                    <label for="numero_documento" class="field-label">Número de Documento</label>
+                    <input type="text" name="numero_documento" id="numero_documento" placeholder="Ej: OFI-2026-001" maxlength="50" class="form-control" />
                 </div>
             </div>
             
-            <!-- Ubicación de Destino (para traslado) -->
-            <div class="field-row" id="ubicacion_destino_container" style="display: none;">
+            <!-- Sección: Ubicaciones -->
+            <div class="form-section-title" style="margin-top: 25px; font-size: 1rem; color: #666;">
+                <i class="zmdi zmdi-pin"></i> Ubicaciones
+            </div>
+            
+            <div class="field-row">
                 <div class="field-col">
-                    <label for="ubicacion_destino_id" class="field-label required">Ubicación de Destino</label>
-                    <select name="ubicacion_destino_id" id="ubicacion_destino_id" class="form-control">
-                        <option value="">Seleccionar...</option>
+                    <label for="ubicacion_origen_id" class="field-label">Ubicación de Origen</label>
+                    <select name="ubicacion_origen_id" id="ubicacion_origen_id" class="form-control">
+                        <option value="0">Seleccionar...</option>
                         <?php foreach ($ubicaciones as $ubic): ?>
-                            <option value="<?= $ubic['id']; ?>"><?= htmlspecialchars($ubic['nombre']); ?></option>
+                            <option value="<?= $ubic['id']; ?>" <?= ($bien_seleccionado['ubicacion_id'] ?? 0) == $ubic['id'] ? 'selected' : ''; ?>>
+                                <?= htmlspecialchars(($ubic['descripcion'] ?? '') . ' - ' . $ubic['nombre']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="field-col">
+                    <label for="ubicacion_destino_id" class="field-label">Ubicación de Destino</label>
+                    <select name="ubicacion_destino_id" id="ubicacion_destino_id" class="form-control">
+                        <option value="0">Seleccionar...</option>
+                        <?php foreach ($ubicaciones as $ubic): ?>
+                            <option value="<?= $ubic['id']; ?>">
+                                <?= htmlspecialchars(($ubic['descripcion'] ?? '') . ' - ' . $ubic['nombre']); ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
             </div>
             
-            <!-- Estatus de Destino (para cambio de estatus) -->
-            <div class="field-row" id="estatus_destino_container" style="display: none;">
+            <!-- Sección: Responsables -->
+            <div class="form-section-title" style="margin-top: 25px; font-size: 1rem; color: #666;">
+                <i class="zmdi zmdi-account"></i> Responsables
+            </div>
+            
+            <div class="field-row">
                 <div class="field-col">
-                    <label for="estatus_destino_id" class="field-label required">Nuevo Estatus</label>
+                    <label for="responsable_origen_id" class="field-label">Responsable de Origen</label>
+                    <select name="responsable_origen_id" id="responsable_origen_id" class="form-control">
+                        <option value="0">Seleccionar...</option>
+                        <?php foreach ($responsables as $resp): ?>
+                            <option value="<?= $resp['id']; ?>">
+                                <?= htmlspecialchars(($resp['cedula'] ?? '') . ' - ' . $resp['nombre']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="field-col">
+                    <label for="responsable_destino_id" class="field-label">Responsable de Destino</label>
+                    <select name="responsable_destino_id" id="responsable_destino_id" class="form-control">
+                        <option value="0">Seleccionar...</option>
+                        <?php foreach ($responsables as $resp): ?>
+                            <option value="<?= $resp['id']; ?>">
+                                <?= htmlspecialchars(($resp['cedula'] ?? '') . ' - ' . $resp['nombre']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Sección: Estatus Destino -->
+            <div class="field-row" id="estatus_destino_container" style="display: none; margin-top: 25px;">
+                <div class="field-col" style="flex: 1;">
+                    <label for="estatus_destino_id" class="field-label required-field">Nuevo Estatus</label>
                     <select name="estatus_destino_id" id="estatus_destino_id" class="form-control">
                         <option value="">Seleccionar...</option>
                         <?php foreach ($estatus as $est): ?>
-                            <option value="<?= $est['id']; ?>"><?= htmlspecialchars($est['nombre']); ?></option>
+                            <option value="<?= $est['id']; ?>">
+                                <?= htmlspecialchars($est['nombre']); ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
             </div>
             
-            <!-- Responsable y Motivo -->
+            <!-- Sección: Razón y Observaciones -->
+            <div class="form-section-title" style="margin-top: 25px; font-size: 1rem; color: #666;">
+                <i class="zmdi zmdi-comment-text"></i> Detalles Adicionales
+            </div>
+            
             <div class="field-row">
-                <div class="field-col">
-                    <label for="responsable" class="field-label">Responsable</label>
-                    <input type="text" name="responsable" id="responsable" placeholder="Nombre del responsable" class="form-control" />
-                </div>
-                <div class="field-col">
-                    <label for="motivo" class="field-label">Motivo</label>
-                    <input type="text" name="motivo" id="motivo" placeholder="Motivo del movimiento" class="form-control" />
+                <div class="field-col" style="flex: 1;">
+                    <label for="razon" class="field-label">Razón del Movimiento</label>
+                    <input type="text" name="razon" id="razon" placeholder="Motivo o razón del movimiento" maxlength="255" class="form-control" />
                 </div>
             </div>
             
-            <!-- Observaciones -->
-            <div class="field-row">
+            <div class="field-row" style="margin-top: 15px;">
                 <div class="field-col" style="flex: 100%;">
                     <label for="observaciones" class="field-label">Observaciones</label>
-                    <textarea name="observaciones" id="observaciones" rows="3" placeholder="Observaciones adicionales..." class="form-control" style="width: 100%;"></textarea>
+                    <textarea name="observaciones" id="observaciones" rows="4" placeholder="Observaciones adicionales..." class="form-control" style="width: 100%;"></textarea>
                 </div>
             </div>
             
             <!-- Botones -->
-            <div class="button-container">
-                <button type="reset" class="btn btn-secondary">
-                    <i class="zmdi zmdi-refresh"></i> Limpiar
-                </button>
-                <button type="submit" class="btn btn-primary">
-                    <i class="zmdi zmdi-save"></i> Registrar Movimiento
-                </button>
+            <div class="field-row" style="margin-top: 30px;">
+                <div class="field-col">
+                    <a href="registrar_movimiento.php" class="btn btn-secondary" style="margin-right: 10px;">
+                        <i class="zmdi zmdi-close"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="zmdi zmdi-save"></i> Registrar Movimiento
+                    </button>
+                </div>
             </div>
         </form>
         <?php endif; ?>
         
-        <!-- Movimientos Recientes -->
-        <?php if (!empty($movimientos_recientes)): ?>
-        <div class="section-container">
-            <h4 class="section-title">Movimientos Recientes</h4>
-            <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead>
-                        <tr style="background-color: #ff6600; color: white;">
-                            <th style="padding: 10px; text-align: left;">Fecha</th>
-                            <th style="padding: 10px; text-align: left;">Código Bien</th>
-                            <th style="padding: 10px; text-align: left;">Tipo</th>
-                            <th style="padding: 10px; text-align: left;">Responsable</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($movimientos_recientes as $mov): ?>
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 10px;"><?= htmlspecialchars($mov['fecha_movimiento']); ?></td>
-                            <td style="padding: 10px;"><?= htmlspecialchars($mov['codigo_bien_nacional']); ?></td>
-                            <td style="padding: 10px;"><?= htmlspecialchars($mov['tipo_movimiento']); ?></td>
-                            <td style="padding: 10px;"><?= htmlspecialchars($mov['responsable'] ?? 'N/A'); ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <?php endif; ?>
-        
         <!-- Información -->
-        <div class="section-container" style="background-color: #fff3e0;">
-            <h4 class="section-title" style="color: #ff6600;">
-                <i class="zmdi zmdi-info-outline"></i> Información sobre Movimientos
-            </h4>
+        <div class="form-section" style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); border: 1px solid #ffcc80;">
+            <div class="form-section-title"><i class="zmdi zmdi-info-outline" style="color: #e65100;"></i> Información sobre Movimientos</div>
             <ul style="margin: 0; padding-left: 20px; color: #333;">
                 <li style="margin-bottom: 8px;"><strong>Traslado:</strong> Cambio de ubicación física del bien.</li>
                 <li style="margin-bottom: 8px;"><strong>Préstamo:</strong> Salida temporal del bien de las instalaciones.</li>
@@ -544,33 +597,16 @@ try {
     <script>
         function toggleFields() {
             const tipo = document.getElementById('tipo_movimiento').value;
-            const ubicacionDestino = document.getElementById('ubicacion_destino_container');
             const estatusDestino = document.getElementById('estatus_destino_container');
+            const ubicacionDestino = document.getElementById('ubicacion_destino_id')?.parentElement?.parentElement;
             
-            ubicacionDestino.style.display = 'none';
-            estatusDestino.style.display = 'none';
+            if (estatusDestino) estatusDestino.style.display = 'none';
             
-            if (tipo === 'traslado') {
-                ubicacionDestino.style.display = 'flex';
-            } else if (tipo === 'cambio_estatus' || tipo === 'desincorporacion') {
-                estatusDestino.style.display = 'flex';
+            if (tipo === 'cambio_estatus' || tipo === 'desincorporacion') {
+                if (estatusDestino) estatusDestino.style.display = 'flex';
             }
         }
         
-        document.getElementById('form-registrar-movimiento')?.addEventListener('submit', function(e) {
-            const tipo = document.getElementById('tipo_movimiento').value;
-            const fecha = document.getElementById('fecha_movimiento').value;
-            
-            if (!tipo || !fecha) {
-                e.preventDefault();
-                alert('Por favor, complete todos los campos obligatorios.');
-                return false;
-            }
-            
-            return true;
-        });
-        
-        // Establecer fecha actual por defecto
         document.addEventListener('DOMContentLoaded', function() {
             const fechaInput = document.getElementById('fecha_movimiento');
             if (fechaInput && !fechaInput.value) {
@@ -582,8 +618,6 @@ try {
     </script>
 </body>
 </html>
-
-
 
 	<!-- Scripts -->
 	<script src="./js/jquery-3.1.1.min.js"></script>

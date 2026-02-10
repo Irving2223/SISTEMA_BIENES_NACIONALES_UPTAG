@@ -57,6 +57,23 @@ $fecha_desde = $_POST['fecha_desde'] ?? date('Y-m-d', strtotime('-7 days'));
 $fecha_hasta = $_POST['fecha_hasta'] ?? date('Y-m-d');
 $cedula_usuario = $_POST['cedula_usuario'] ?? 'todos';
 
+// Función para obtener color del badge según la acción
+function obtenerColorAccion($accion) {
+    $colores = [
+        'INSERT' => '#28a745',      // Verde - Nuevo registro
+        'REGISTRO' => '#28a745',    // Verde
+        'UPDATE' => '#ffc107',      // Amarillo - Modificación
+        'EDICION' => '#ffc107',     // Amarillo
+        'DELETE' => '#dc3545',      // Rojo - Eliminación
+        'ELIMINAR' => '#dc3545',    // Rojo
+        'SELECT' => '#17a2b8',      // Azul claro - Consulta
+        'CONSULTA' => '#17a2b8',    // Azul claro
+        'LOGIN' => '#007bff',       // Azul - Inicio de sesión
+        'INICIO DE SESIÓN' => '#007bff', // Azul
+    ];
+    return $colores[strtoupper($accion)] ?? '#6c757d'; // Gris por defecto
+}
+
 // Construir consulta base solo si la tabla auditoria existe
 if ($auditoria_existe) {
     $sql_base = "SELECT b.*, u.{$col_nombre}, u.{$col_apellido} 
@@ -174,55 +191,44 @@ if ($result) {
 <?php if (!empty($registros) && isset($_POST['buscar'])): ?>
 <div class="section-container">
     <h3 class="section-title">Registros Encontrados</h3>
-    <div class="table-responsive">
-        <table class="table table-striped table-hover">
-            <thead class="table-dark">
-                <tr>
-                    <th>ID</th>
-                    <th>Usuario</th>
-                    <th>Acción</th>
-                    <th>Tabla Afectada</th>
-                    <th>Registro Afectado</th>
-                    <th>Detalle</th>
-                    <th>Fecha y Hora</th>
+    <div style="overflow-x: auto; margin: 0 -15px; padding: 0 15px;">
+        <table style="width: 100%; border-collapse: collapse; min-width: 900px;">
+            <thead>
+                <tr style="background: #333; color: white;">
+                    <th style="padding: 12px 10px; text-align: left; font-size: 0.85rem; white-space: nowrap;">ID</th>
+                    <th style="padding: 12px 10px; text-align: left; font-size: 0.85rem; white-space: nowrap;">Usuario</th>
+                    <th style="padding: 12px 10px; text-align: left; font-size: 0.85rem; white-space: nowrap;">Acción</th>
+                    <th style="padding: 12px 10px; text-align: left; font-size: 0.85rem; white-space: nowrap;">Tabla</th>
+                    <th style="padding: 12px 10px; text-align: left; font-size: 0.85rem; white-space: nowrap;">Registro</th>
+                    <th style="padding: 12px 10px; text-align: left; font-size: 0.85rem; white-space: nowrap;">Detalle</th>
+                    <th style="padding: 12px 10px; text-align: left; font-size: 0.85rem; white-space: nowrap;">Fecha/Hora</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($registros as $registro): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($registro['id']); ?></td>
-                    <td>
+                <tr style="border-bottom: 1px solid #ddd;">
+                    <td style="padding: 10px; font-size: 0.85rem; white-space: nowrap;"><?php echo htmlspecialchars($registro['id']); ?></td>
+                    <td style="padding: 10px; font-size: 0.85rem;">
                         <?php 
                         $nombre_completo = trim(($registro[$col_nombre] ?? '') . ' ' . ($registro[$col_apellido] ?? ''));
                         echo !empty($nombre_completo) ? htmlspecialchars($nombre_completo) : 'Sistema';
                         ?>
-                        <br><small class="text-muted"><?php echo htmlspecialchars($registro['usuario_cedula']); ?></small>
+                        <br><small style="color: #666; font-size: 0.75rem;"><?php echo htmlspecialchars($registro['usuario_cedula']); ?></small>
                     </td>
-                    <td>
-                        <span class="badge 
-                            <?php 
-                                $accion = strtoupper($registro['accion']);
-                                switch($accion) {
-                                    case 'REGISTRO': 
-                                    case 'INSERT': echo 'bg-success'; break;
-                                    case 'EDICION': 
-                                    case 'UPDATE': echo 'bg-warning text-dark'; break;
-                                    case 'CONSULTA': 
-                                    case 'SELECT': echo 'bg-info'; break;
-                                    case 'INICIO DE SESIÓN': 
-                                    case 'LOGIN': echo 'bg-primary'; break;
-                                    case 'ELIMINAR': 
-                                    case 'DELETE': echo 'bg-danger'; break;
-                                    default: echo 'bg-secondary'; break;
-                                }
-                            ?>">
+                    <td style="padding: 10px; font-size: 0.85rem; white-space: nowrap;">
+                        <?php $badge_color = obtenerColorAccion($registro['accion']); ?>
+                        <span style="background: <?php echo $badge_color; ?>; color: white; padding: 2px 8px; border-radius: 3px; font-size: 0.75rem; white-space: nowrap;">
                             <?php echo htmlspecialchars($registro['accion']); ?>
                         </span>
                     </td>
-                    <td><?php echo htmlspecialchars($registro['tabla_afectada']); ?></td>
-                    <td><?php echo htmlspecialchars($registro['datos_nuevos'] ?? $registro['datos_anteriores'] ?? 'N/A'); ?></td>
-                    <td><?php echo htmlspecialchars($registro['datos_nuevos'] ?? ''); ?></td>
-                    <td><?php echo date('d/m/Y H:i:s', strtotime($registro['fecha_accion'])); ?></td>
+                    <td style="padding: 10px; font-size: 0.85rem; white-space: nowrap;"><?php echo htmlspecialchars($registro['tabla_afectada']); ?></td>
+                    <td style="padding: 10px; font-size: 0.85rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo htmlspecialchars($registro['datos_nuevos'] ?? $registro['datos_anteriores'] ?? 'N/A'); ?>">
+                        <?php echo htmlspecialchars($registro['datos_nuevos'] ?? $registro['datos_anteriores'] ?? 'N/A'); ?>
+                    </td>
+                    <td style="padding: 10px; font-size: 0.85rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?php echo htmlspecialchars($registro['datos_nuevos'] ?? ''); ?>">
+                        <?php echo htmlspecialchars($registro['datos_nuevos'] ?? ''); ?>
+                    </td>
+                    <td style="padding: 10px; font-size: 0.85rem; white-space: nowrap;"><?php echo date('d/m/Y H:i', strtotime($registro['fecha_accion'])); ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

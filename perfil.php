@@ -175,8 +175,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p style="margin:4px 0; color:white; text-shadow:0.1px 0.1px 10px black;"><strong>Usuario:</strong></p>
                     <h2 style="margin:0; font-size:clamp(2rem, 8vw, 80px); color:white; font-weight:900; font-family:montserrat; text-shadow:0.1px 0.1px 10px black;"> <i class="zmdi zmdi-account"></i>   <?= htmlspecialchars($_SESSION['usuario']['nombre'] . ' ' . $_SESSION['usuario']['apellido']) ?></h2>
                     <p style="margin:4px 0; color:white; text-shadow:0.1px 0.1px 10px black;">Cédula: <strong> <?= htmlspecialchars($cedula) ?> </strong></p>
-                    <span style="background:white; color:black; padding:6px 12px; border-radius:6px; font-size:0.9rem; font-weight:800;">
-                        <?= htmlspecialchars($usuario['rol']) ?>
+                    <?php
+                    // Determinar clase y color según el rol
+                    $rol_class = ($usuario['rol'] === 'Administrador') ? 'background:#dc3545;' : 'background:#28a745;';
+                    $rol_icon = ($usuario['rol'] === 'Administrador') ? '<i class="fas fa-crown"></i>' : '<i class="fas fa-user"></i>';
+                    ?>
+                    <span style="<?= $rol_class ?> color:white; padding:6px 12px; border-radius:6px; font-size:0.9rem; font-weight:800; display:inline-block; margin-top:8px;">
+                        <?= $rol_icon ?> <?= htmlspecialchars($usuario['rol']) ?>
                     </span>
                 </div>
             </div>
@@ -225,7 +230,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <tr>
                             <td data-label="Campo" style="padding:14px 15px; border-bottom:1px solid #eee; font-weight:600; color:#ff6600;">Rol</td>
                             <td data-label="Valor" style="padding:14px 15px; border-bottom:1px solid #eee; color:#333;">
-                                <?= htmlspecialchars($usuario['rol']) ?>
+                                <?php if ($usuario['rol'] === 'Administrador'): ?>
+                                    <span style="background:#dc3545; color:white; padding:4px 10px; border-radius:4px; font-size:0.85rem; font-weight:600;">
+                                        <i class="fas fa-crown"></i> Administrador
+                                    </span>
+                                <?php else: ?>
+                                    <span style="background:#28a745; color:white; padding:4px 10px; border-radius:4px; font-size:0.85rem; font-weight:600;">
+                                        <i class="fas fa-user"></i> Usuario
+                                    </span>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <tr>

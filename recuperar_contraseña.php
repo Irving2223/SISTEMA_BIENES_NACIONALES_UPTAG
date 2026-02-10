@@ -6,19 +6,6 @@ include('conexion.php');
 $mensaje = '';
 $tipo_mensaje = '';
 $accion = $_POST['accion'] ?? 'seleccionar';
-$usuarios = [];
-
-// Obtener lista de usuarios con email desde la base de datos
-$sql_usuarios = "SELECT cedula, nombres, email FROM usuarios WHERE activo = 1 AND email != '' ORDER BY nombres";
-$result_usuarios = mysqli_query($conn, $sql_usuarios);
-if ($result_usuarios) {
-    while ($row = mysqli_fetch_assoc($result_usuarios)) {
-        $usuarios[] = $row;
-    }
-} else {
-    $mensaje = "Error al cargar usuarios: " . mysqli_error($conn);
-    $tipo_mensaje = "error";
-}
 
 // Generar código de recuperación (6 dígitos)
 function generarCodigo() {
@@ -48,13 +35,13 @@ foreach ($temp_storage as $key => $data) {
 file_put_contents($storage_file, json_encode($temp_storage));
 
 // Procesar envío de código
-if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
-    $cedula_usuario = mysqli_real_escape_string($conn, $_POST['cedula_usuario']);
+if ($accion === 'enviar_codigo' && isset($_POST['email_usuario'])) {
+    $email_usuario = mysqli_real_escape_string($conn, trim($_POST['email_usuario']));
     
-    // Buscar usuario
-    $sql_buscar = "SELECT cedula, nombres, email FROM usuarios WHERE cedula = ? AND activo = 1 AND email != ''";
+    // Buscar usuario por email
+    $sql_buscar = "SELECT cedula, nombres, email FROM usuarios WHERE email = ? AND activo = 1";
     $stmt_buscar = mysqli_prepare($conn, $sql_buscar);
-    mysqli_stmt_bind_param($stmt_buscar, "s", $cedula_usuario);
+    mysqli_stmt_bind_param($stmt_buscar, "s", $email_usuario);
     mysqli_stmt_execute($stmt_buscar);
     $result_buscar = mysqli_stmt_get_result($stmt_buscar);
     
@@ -62,7 +49,7 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
         $codigo = generarCodigo();
         
         // Guardar código en almacenamiento temporal
-        $temp_storage[$cedula_usuario] = [
+        $temp_storage[$email_usuario] = [
             'cedula' => $usuario['cedula'],
             'nombre_completo' => $usuario['nombres'],
             'email' => $usuario['email'],
@@ -299,7 +286,7 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
             $accion = 'verificar_codigo';
         }
     } else {
-        $mensaje = "No se encontró un usuario activo con esa cédula.";
+        $mensaje = "No se encontró un usuario activo con ese correo electrónico.";
         $tipo_mensaje = "error";
     }
     mysqli_stmt_close($stmt_buscar);
@@ -308,22 +295,22 @@ if ($accion === 'enviar_codigo' && isset($_POST['cedula_usuario'])) {
 // Procesar verificación de código
 if ($accion === 'verificar_codigo' && isset($_POST['codigo'])) {
     $codigo_ingresado = trim($_POST['codigo']);
-    $cedula_usuario = $_POST['cedula_usuario'] ?? '';
+    $email_usuario = $_POST['email_usuario'] ?? '';
     
-    if (empty($cedula_usuario)) {
+    if (empty($email_usuario)) {
         $mensaje = "Información de usuario faltante.";
         $tipo_mensaje = "error";
         $accion = 'seleccionar';
-    } elseif (!isset($temp_storage[$cedula_usuario])) {
+    } elseif (!isset($temp_storage[$email_usuario])) {
         $mensaje = "No hay una solicitud de recuperación activa para este usuario.";
         $tipo_mensaje = "error";
         $accion = 'seleccionar';
     } else {
-        $datos_recuperacion = $temp_storage[$cedula_usuario];
+        $datos_recuperacion = $temp_storage[$email_usuario];
         
         // Verificar expiración
         if (time() > $datos_recuperacion['expiracion']) {
-            unset($temp_storage[$cedula_usuario]);
+            unset($temp_storage[$email_usuario]);
             file_put_contents($storage_file, json_encode($temp_storage));
             $mensaje = "El código ha expirado. Por favor, solicite uno nuevo.";
             $tipo_mensaje = "error";
@@ -331,7 +318,7 @@ if ($accion === 'verificar_codigo' && isset($_POST['codigo'])) {
         } 
         // Verificar intentos
         elseif ($datos_recuperacion['intentos'] >= $datos_recuperacion['max_intentos']) {
-            unset($temp_storage[$cedula_usuario]);
+            unset($temp_storage[$email_usuario]);
             file_put_contents($storage_file, json_encode($temp_storage));
             $mensaje = "Demasiados intentos fallidos. Por favor, solicite un nuevo código.";
             $tipo_mensaje = "error";
@@ -340,7 +327,7 @@ if ($accion === 'verificar_codigo' && isset($_POST['codigo'])) {
         // Verificar código
         elseif ($codigo_ingresado === $datos_recuperacion['codigo']) {
             // Eliminar el código después de verificarlo
-            unset($temp_storage[$cedula_usuario]);
+            unset($temp_storage[$email_usuario]);
             file_put_contents($storage_file, json_encode($temp_storage));
             
             $accion = 'cambiar_contraseña';
@@ -348,10 +335,10 @@ if ($accion === 'verificar_codigo' && isset($_POST['codigo'])) {
             $tipo_mensaje = "success";
         } else {
             // Incrementar intentos fallidos
-            $temp_storage[$cedula_usuario]['intentos']++;
+            $temp_storage[$email_usuario]['intentos']++;
             file_put_contents($storage_file, json_encode($temp_storage));
             
-            $intentos_restantes = $datos_recuperacion['max_intentos'] - $temp_storage[$cedula_usuario]['intentos'];
+            $intentos_restantes = $datos_recuperacion['max_intentos'] - $temp_storage[$email_usuario]['intentos'];
             $mensaje = "Código incorrecto. Intentos restantes: $intentos_restantes.";
             $tipo_mensaje = "error";
         }
@@ -362,9 +349,9 @@ if ($accion === 'verificar_codigo' && isset($_POST['codigo'])) {
 if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
     $nueva_clave = $_POST['nueva_clave'] ?? '';
     $confirmar_clave = $_POST['confirmar_clave'] ?? '';
-    $cedula_usuario = $_POST['cedula_usuario'] ?? '';
+    $email_usuario = $_POST['email_usuario'] ?? '';
     
-    if (empty($nueva_clave) || empty($confirmar_clave) || empty($cedula_usuario)) {
+    if (empty($nueva_clave) || empty($confirmar_clave) || empty($email_usuario)) {
         $mensaje = "Información faltante.";
         $tipo_mensaje = "error";
         $accion = 'seleccionar';
@@ -389,31 +376,54 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
             // Actualizar contraseña con password_hash
             $hash_clave = password_hash($nueva_clave, PASSWORD_DEFAULT);
             
-            $sql_update = "UPDATE usuarios SET password_hash = ? WHERE cedula = ?";
-            $stmt_update = mysqli_prepare($conn, $sql_update);
-            mysqli_stmt_bind_param($stmt_update, "ss", $hash_clave, $cedula_usuario);
-            
-            if (mysqli_stmt_execute($stmt_update)) {
-                $mensaje = "Contraseña actualizada con éxito. Puede iniciar sesión.";
-                $tipo_mensaje = "success";
-                $accion = 'finalizado';
-                
-                // Registrar en auditoria
-                $detalle = "Contraseña restablecida mediante recuperación";
-                $sql_auditoria = "INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_nuevos, ip_address) VALUES ('usuarios', 'UPDATE', ?, ?, ?)";
-                $stmt_auditoria = mysqli_prepare($conn, $sql_auditoria);
-                $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-                $datos = json_encode(['accion' => 'password_restablecido']);
-                mysqli_stmt_bind_param($stmt_auditoria, "sss", $cedula_usuario, $datos, $ip);
-                mysqli_stmt_execute($stmt_auditoria);
-                mysqli_stmt_close($stmt_auditoria);
-                
+            // Obtener la cédula del usuario desde el almacenamiento temporal
+            $cedula_usuario = '';
+            if (isset($temp_storage[$email_usuario])) {
+                $cedula_usuario = $temp_storage[$email_usuario]['cedula'];
             } else {
-                $mensaje = "Error al actualizar la contraseña.";
-                $tipo_mensaje = "error";
-                $accion = 'cambiar_contraseña';
+                // Si no está en storage, buscar en la base de datos
+                $sql_cedula = "SELECT cedula FROM usuarios WHERE email = ?";
+                $stmt_cedula = mysqli_prepare($conn, $sql_cedula);
+                mysqli_stmt_bind_param($stmt_cedula, "s", $email_usuario);
+                mysqli_stmt_execute($stmt_cedula);
+                $result_cedula = mysqli_stmt_get_result($stmt_cedula);
+                if ($row_cedula = mysqli_fetch_assoc($result_cedula)) {
+                    $cedula_usuario = $row_cedula['cedula'];
+                }
+                mysqli_stmt_close($stmt_cedula);
             }
-            mysqli_stmt_close($stmt_update);
+            
+            if (empty($cedula_usuario)) {
+                $mensaje = "Error al identificar el usuario.";
+                $tipo_mensaje = "error";
+                $accion = 'seleccionar';
+            } else {
+                $sql_update = "UPDATE usuarios SET password_hash = ? WHERE cedula = ?";
+                $stmt_update = mysqli_prepare($conn, $sql_update);
+                mysqli_stmt_bind_param($stmt_update, "ss", $hash_clave, $cedula_usuario);
+                
+                if (mysqli_stmt_execute($stmt_update)) {
+                    $mensaje = "Contraseña actualizada con éxito. Puede iniciar sesión.";
+                    $tipo_mensaje = "success";
+                    $accion = 'finalizado';
+                    
+                    // Registrar en auditoria
+                    $detalle = "Contraseña restablecida mediante recuperación";
+                    $sql_auditoria = "INSERT INTO auditoria (tabla_afectada, accion, usuario_cedula, datos_nuevos, ip_address) VALUES ('usuarios', 'UPDATE', ?, ?, ?)";
+                    $stmt_auditoria = mysqli_prepare($conn, $sql_auditoria);
+                    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+                    $datos = json_encode(['accion' => 'password_restablecido']);
+                    mysqli_stmt_bind_param($stmt_auditoria, "sss", $cedula_usuario, $datos, $ip);
+                    mysqli_stmt_execute($stmt_auditoria);
+                    mysqli_stmt_close($stmt_auditoria);
+                    
+                } else {
+                    $mensaje = "Error al actualizar la contraseña.";
+                    $tipo_mensaje = "error";
+                    $accion = 'cambiar_contraseña';
+                }
+                mysqli_stmt_close($stmt_update);
+            }
         }
     }
 }
@@ -555,22 +565,16 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
             <img src="assets/img/LOGO INTI.png" alt="Logo" style="width: 80px; height: auto;">
         </div>
 
-        <!-- Paso 1: Seleccionar Usuario -->
+        <!-- Paso 1: Ingresar Correo Electrónico -->
         <?php if ($accion === 'seleccionar'): ?>
             <div class="form-step">
                 <h3>Recuperar Contraseña</h3>
                 <form method="POST" action="">
                     <input type="hidden" name="accion" value="enviar_codigo">
                     <div class="modern-input-group">
-                        <label for="cedula_usuario" class="form-label" style="font-family: 'Montserrat', sans-serif; font-weight: 500;">Seleccionar Usuario</label>
-                        <select name="cedula_usuario" id="cedula_usuario" class="form-control" required style="font-family: 'Montserrat', sans-serif;">
-                            <option value="">-- Seleccionar --</option>
-                            <?php foreach ($usuarios as $u): ?>
-                                <option value="<?= htmlspecialchars($u['cedula']) ?>">
-                                    <?= htmlspecialchars($u['cedula'] . ' - ' . $u['nombres']) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <label for="email_usuario" class="form-label" style="font-family: 'Montserrat', sans-serif; font-weight: 500;">Correo Electrónico</label>
+                        <input type="email" name="email_usuario" id="email_usuario" class="form-control" required 
+                               placeholder="correo@ejemplo.com" style="font-family: 'Montserrat', sans-serif;">
                     </div>
                     <div style="text-align: center;">
                         <button type="submit" class="btn btn-primary" style="width: 100%;">
@@ -586,11 +590,11 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
             <div class="form-step">
                 <h3>Verificar Código</h3>
                 <p style="text-align: center; font-family: 'Montserrat', sans-serif; color: #666; margin-bottom: 20px;">
-                    Ingrese el código de 6 dígitos enviado a su correo
+                    Ingrese el código de 6 dígitos enviado a <strong><?= htmlspecialchars($_POST['email_usuario'] ?? '') ?></strong>
                 </p>
                 <form method="POST" action="">
                     <input type="hidden" name="accion" value="verificar_codigo">
-                    <input type="hidden" name="cedula_usuario" value="<?= htmlspecialchars($_POST['cedula_usuario'] ?? '') ?>">
+                    <input type="hidden" name="email_usuario" value="<?= htmlspecialchars($_POST['email_usuario'] ?? '') ?>">
                     <div class="modern-input-group">
                         <label for="codigo" class="form-label" style="font-family: 'Montserrat', sans-serif; font-weight: 500;">Código de Verificación</label>
                         <input type="text" name="codigo" id="codigo" class="form-control" required 
@@ -617,7 +621,7 @@ if ($accion === 'cambiar_contraseña' && isset($_POST['nueva_clave'])) {
                 <h3>Nueva Contraseña</h3>
                 <form method="POST" action="">
                     <input type="hidden" name="accion" value="cambiar_contraseña">
-                    <input type="hidden" name="cedula_usuario" value="<?= htmlspecialchars($_POST['cedula_usuario'] ?? '') ?>">
+                    <input type="hidden" name="email_usuario" value="<?= htmlspecialchars($_POST['email_usuario'] ?? '') ?>">
                     <div class="modern-input-group">
                         <label for="nueva_clave" class="form-label" style="font-family: 'Montserrat', sans-serif; font-weight: 500;">Nueva Contraseña</label>
                         <input type="password" name="nueva_clave" id="nueva_clave" class="form-control" required minlength="8"

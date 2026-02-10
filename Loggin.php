@@ -161,20 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
 
-    <!-- Mensaje de cierre por inactividad -->
-    <?php if (!empty($mensaje_cierre_sesion)): ?>
-        <div style="background: #f8d7da; color: #721c24; text-align:center; padding:10px; font-size:clamp(1rem, 5vw, 25px); font-weight:700;">
-            <?= htmlspecialchars($mensaje_cierre_sesion) ?>
-        </div>
-    <?php endif; ?>
-
-    <!-- Aquí se muestra el mensaje de error si existe -->
-    <?php if (!empty($mensaje)): ?>
-        <div style="background: #f8d7da; color: #721c24; text-align:center; padding:10px; font-size:clamp(1rem, 5vw, 25px); font-weight:700;">
-            <?= htmlspecialchars($mensaje) ?>
-        </div>
-    <?php endif; ?>
-
+    
     <div class="centered-container">
         <div class="modern-login-container">
 
@@ -200,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         autocomplete="off" 
                         required 
                         value="<?= isset($_POST['username']) ? htmlspecialchars($_POST['username']) : '' ?>"
-                    />
+                        />
                 </div>
 
                 <!-- Campo: Contraseña -->
@@ -237,8 +224,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     Volver al Inicio
                 </a>
             </div>
+            <!-- Mensaje de cierre por inactividad -->
+            <?php if (!empty($mensaje_cierre_sesion)): ?>
+                <div style="background: #f8d7da; color: #721c24; text-align:center; padding:10px; font-size:clamp(1rem, 5vw, 25px); font-weight:700;">
+                    <?= htmlspecialchars($mensaje_cierre_sesion) ?>
+                </div>
+            <?php endif; ?>
+        
+            <!-- Aquí se muestra el mensaje de error si existe -->
+            <?php if (!empty($mensaje)): ?>
+                <div style="background: #f8d7da; color: #721c24; text-align:center; padding:10px; font-size:clamp(1rem, 5vw, 25px); font-weight:700;">
+                    <?= htmlspecialchars($mensaje) ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
+
 
     <script>
         // Validación del formulario
