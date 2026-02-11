@@ -157,7 +157,9 @@ $es_administrador = ($_SESSION['usuario']['rol'] === 'Administrador');
 					<ul class="list-unstyled full-box">
 						<li><a href="categorias.php"><i class="zmdi zmdi-plus-circle"></i> Categorias</a></li>
                         <li><a href="lugares_dependencias.php"><i class="zmdi zmdi-edit"></i> Lugares y dependencias</a></li>
-					</ul>
+					    <li><a href="editar_lugares_dependencias.php"><i class="zmdi zmdi-edit"></i> Agregar responsables</a></li>
+
+                    </ul>
 				</li>
 
 				<li>

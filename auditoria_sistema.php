@@ -165,7 +165,7 @@ if ($result) {
                         <?php foreach ($usuarios as $user): ?>
                             <option value="<?php echo htmlspecialchars($user['cedula']); ?>" 
                                     <?php echo ($cedula_usuario === $user['cedula']) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars(trim($user['nombre'] . ' ' . $user['apellido']) . ' (' . $user['cedula'] . ')'); ?>
+                                <?php echo htmlspecialchars(trim($user[$col_nombre] . ' ' . $user[$col_apellido]) . ' (' . $user['cedula'] . ')'); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>

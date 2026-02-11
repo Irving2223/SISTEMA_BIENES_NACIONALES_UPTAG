@@ -210,10 +210,11 @@ $conn->close();
     <table>
         <thead>
             <tr>
-                <th style="width: 30px; text-align: center;">Nº</th>
-                <th style="width: 120px;">Nombre</th>
-                <th style="width: 80px;">Código Bien Nacional</th>
-                <th style="width: 100px;">Dependencia</th>
+                <th style="width: 25px; text-align: center;">Nº</th>
+                <th style="width: 100px;">Nombre</th>
+                <th style="width: 70px;">Código BN</th>
+                <th style="width: 80px;">Dependencia</th>
+                <th style="width: 70px;">Responsable</th>
                 <th style="width: 50px; text-align: center;">Estatus</th>
             </tr>
         </thead>
@@ -224,6 +225,7 @@ $conn->close();
                 <td><?php echo htmlspecialchars($ubi['nombre'] ?? 'N/A'); ?></td>
                 <td><?php echo htmlspecialchars($ubi['codigo_bien_nacional'] ?? 'Sin asignar'); ?></td>
                 <td><?php echo htmlspecialchars($ubi['nombre_dependencia'] ?? 'Sin asignar'); ?></td>
+                <td><?php echo htmlspecialchars($ubi['responsable'] ?? 'Sin asignar'); ?></td>
                 <td class="text-center">
                     <?php 
                         $estatus = isset($ubi['activo']) ? ($ubi['activo'] == 1 ? 'Activo' : 'Inactivo') : 'Activo';
@@ -238,7 +240,7 @@ $conn->close();
         </tbody>
         <tfoot>
             <tr class="total-row">
-                <td colspan="4" class="text-right" style="padding: 8px;">TOTAL UBICACIONES:</td>
+                <td colspan="5" class="text-right" style="padding: 8px;">TOTAL UBICACIONES:</td>
                 <td class="text-center" style="padding: 8px;"><?php echo count($ubicaciones); ?></td>
             </tr>
         </tfoot>

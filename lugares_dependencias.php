@@ -54,6 +54,23 @@ try {
     if (tablaExiste($conn, 'ubicaciones')) {
         $columnas_ubicaciones = obtenerColumnas($conn, 'ubicaciones');
         
+        // Agregar columnas faltantes si no existen
+        if (!in_array('responsable', $columnas_ubicaciones)) {
+            try { $conn->query("ALTER TABLE `ubicaciones` ADD COLUMN `responsable` VARCHAR(200) DEFAULT NULL AFTER `descripcion`"); } catch (Exception $e) {}
+        }
+        if (!in_array('telefono', $columnas_ubicaciones)) {
+            try { $conn->query("ALTER TABLE `ubicaciones` ADD COLUMN `telefono` VARCHAR(50) DEFAULT NULL AFTER `responsable`"); } catch (Exception $e) {}
+        }
+        if (!in_array('email', $columnas_ubicaciones)) {
+            try { $conn->query("ALTER TABLE `ubicaciones` ADD COLUMN `email` VARCHAR(100) DEFAULT NULL AFTER `telefono`"); } catch (Exception $e) {}
+        }
+        
+        // Actualizar columnas después de agregar
+        $columnas_ubicaciones = obtenerColumnas($conn, 'ubicaciones');
+        $tiene_responsable = in_array('responsable', $columnas_ubicaciones);
+        $tiene_telefono = in_array('telefono', $columnas_ubicaciones);
+        $tiene_email = in_array('email', $columnas_ubicaciones);
+        
         // Verificar si descripcion tiene el código de bien nacional
         $tiene_descripcion = in_array('descripcion', $columnas_ubicaciones);
         
@@ -72,9 +89,17 @@ try {
                 $total_ubicaciones_dep = $dependencias[$dep_id]['total_ubicaciones'] ?? 0;
             }
             
+            // Obtener datos de responsable
+            $responsable = $tiene_responsable ? ($row['responsable'] ?? '') : '';
+            $telefono = $tiene_telefono ? ($row['telefono'] ?? '') : '';
+            $email = $tiene_email ? ($row['email'] ?? '') : '';
+            
             $row['codigo_bien_nacional'] = $codigo_bien;
             $row['nombre_dependencia'] = $nombre_dependencia;
             $row['total_ubicaciones_dependencia'] = $total_ubicaciones_dep;
+            $row['responsable'] = $responsable;
+            $row['telefono'] = $telefono;
+            $row['email'] = $email;
             $ubicaciones[] = $row;
         }
     }
@@ -94,6 +119,12 @@ $todos_datos = array(
     'dependencias' => $dependencias
 );
 $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
+
+// Verificar si tiene columnas de responsable
+$columnas_ubicaciones = isset($columnas_ubicaciones) ? $columnas_ubicaciones : [];
+$tiene_responsable = in_array('responsable', $columnas_ubicaciones);
+$tiene_telefono = in_array('telefono', $columnas_ubicaciones);
+$tiene_email = in_array('email', $columnas_ubicaciones);
 ?>
 
 <!DOCTYPE html>
@@ -425,7 +456,12 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
                                 <th>Nombre</th>
                                 <th>Código Bien Nacional</th>
                                 <th>Dependencia</th>
-                                <th>Estatus</th>
+                                <?php if ($tiene_responsable): ?>
+                                <th>Responsable</th>
+                                <th>Teléfono</th>
+                                <th>Email</th>
+                                <?php endif; ?>
+                                <th style="width: 80px; text-align: center;">Estatus</th>
                             </tr>
                         </thead>
                         <tbody id="tbody-ubicaciones">
@@ -434,7 +470,8 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
                                 data-id="<?php echo htmlspecialchars($ubic['id'] ?? ''); ?>"
                                 data-nombre="<?php echo htmlspecialchars($ubic['nombre'] ?? ''); ?>"
                                 data-codigo-bien="<?php echo htmlspecialchars($ubic['codigo_bien_nacional'] ?? 'Sin asignar'); ?>"
-                                data-dependencia="<?php echo htmlspecialchars($ubic['nombre_dependencia'] ?? 'Sin asignar'); ?>">
+                                data-dependencia="<?php echo htmlspecialchars($ubic['nombre_dependencia'] ?? 'Sin asignar'); ?>"
+                                data-responsable="<?php echo htmlspecialchars($ubic['responsable'] ?? ''); ?>">
                                 <td class="text-center"><strong><?php echo $contador++; ?></strong></td>
                                 <td><strong><?php echo htmlspecialchars($ubic['nombre'] ?? 'N/A'); ?></strong></td>
                                 <td>
@@ -447,7 +484,12 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
                                     </span>
                                 </td>
                                 <td><?php echo htmlspecialchars($ubic['nombre_dependencia'] ?? 'Sin asignar'); ?></td>
-                                <td>
+                                <?php if ($tiene_responsable): ?>
+                                <td><?php echo htmlspecialchars($ubic['responsable'] ?? 'Sin asignar'); ?></td>
+                                <td><?php echo htmlspecialchars($ubic['telefono'] ?? '-'); ?></td>
+                                <td><?php echo htmlspecialchars($ubic['email'] ?? '-'); ?></td>
+                                <?php endif; ?>
+                                <td class="text-center">
                                     <?php 
                                         $estatus = isset($ubic['activo']) ? ($ubic['activo'] == 1 ? 'Activo' : 'Inactivo') : 'Activo';
                                         $badge_class = $estatus == 'Activo' ? 'status-activo' : 'status-inactivo';
@@ -557,11 +599,13 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
                 var nombre = fila.getAttribute('data-nombre').toLowerCase();
                 var codigo_bien = fila.getAttribute('data-codigo-bien').toLowerCase();
                 var dependencia = fila.getAttribute('data-dependencia').toLowerCase();
+                var responsable = fila.getAttribute('data-responsable').toLowerCase();
                 
                 var coincide = busqueda === '' || 
                               nombre.includes(busqueda) || 
                               codigo_bien.includes(busqueda) ||
-                              dependencia.includes(busqueda);
+                              dependencia.includes(busqueda) ||
+                              responsable.includes(busqueda);
                 
                 if (coincide) {
                     fila.style.display = '';
@@ -619,6 +663,7 @@ $datos_json = json_encode($todos_datos, JSON_HEX_APOS | JSON_HEX_QUOT);
                         nombre: fila.getAttribute('data-nombre'),
                         codigo_bien_nacional: fila.getAttribute('data-codigo-bien'),
                         nombre_dependencia: fila.getAttribute('data-dependencia'),
+                        responsable: fila.getAttribute('data-responsable'),
                         activo: 1
                     });
                 }

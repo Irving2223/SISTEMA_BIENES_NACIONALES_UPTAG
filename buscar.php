@@ -72,7 +72,7 @@ if ($mostrar_historial) {
                 // Buscar ubicación directamente en la tabla bienes
                 $ubicacion_id = $row['ubicacion_id'] ?? 0;
                 if ($ubicacion_id > 0) {
-                    $stmt_ubic = $conn->prepare("SELECT u.nombre, u.descripcion, d.nombre AS dependencia_nombre FROM ubicaciones u LEFT JOIN dependencias d ON u.dependencia_id = d.id WHERE u.id = ?");
+                    $stmt_ubic = $conn->prepare("SELECT u.nombre, u.descripcion, u.responsable, u.telefono, u.email, d.nombre AS dependencia_nombre FROM ubicaciones u LEFT JOIN dependencias d ON u.dependencia_id = d.id WHERE u.id = ?");
                     $stmt_ubic->bind_param("i", $ubicacion_id);
                     $stmt_ubic->execute();
                     $result_ubic = $stmt_ubic->get_result();
@@ -81,16 +81,25 @@ if ($mostrar_historial) {
                         $row['ubicacion_nombre'] = $ubic['nombre'] ?? '';
                         $row['ubicacion_codigo'] = $ubic['descripcion'] ?? '';
                         $row['dependencia_nombre'] = $ubic['dependencia_nombre'] ?? '';
+                        $row['responsable'] = $ubic['responsable'] ?? '';
+                        $row['responsable_telefono'] = $ubic['telefono'] ?? '';
+                        $row['responsable_email'] = $ubic['email'] ?? '';
                     } else {
                         $row['ubicacion_nombre'] = '';
                         $row['ubicacion_codigo'] = '';
                         $row['dependencia_nombre'] = '';
+                        $row['responsable'] = '';
+                        $row['responsable_telefono'] = '';
+                        $row['responsable_email'] = '';
                     }
                     $stmt_ubic->close();
                 } else {
                     $row['ubicacion_nombre'] = '';
                     $row['ubicacion_codigo'] = '';
                     $row['dependencia_nombre'] = '';
+                    $row['responsable'] = '';
+                    $row['responsable_telefono'] = '';
+                    $row['responsable_email'] = '';
                 }
                 $historial_bienes[] = $row;
             }
@@ -810,6 +819,7 @@ if (isset($_GET['buscar'])) {
                             <th style="padding:14px 15px; background:#4caf50; color:white; text-align:left; font-weight:700;">Color</th>
                             <th style="padding:14px 15px; background:#4caf50; color:white; text-align:left; font-weight:700;">Valor</th>
                             <th style="padding:14px 15px; background:#4caf50; color:white; text-align:left; font-weight:700;">Ubicación</th>
+                            <th style="padding:14px 15px; background:#4caf50; color:white; text-align:left; font-weight:700;">Responsable</th>
                             <th style="padding:14px 15px; background:#4caf50; color:white; text-align:left; font-weight:700;">Estatus</th>
                             <th style="padding:14px 15px; background:#4caf50; color:white; text-align:left; font-weight:700;">Acciones</th>
                         </tr>
@@ -845,6 +855,19 @@ if (isset($_GET['buscar'])) {
                                         </span>
                                     <?php else: ?>
                                         <span style="color:#999;">Sin ubicación</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="padding:14px 15px; border-bottom:1px solid #eee;">
+                                    <?php if (!empty($bien['responsable'])): ?>
+                                        <div style="font-weight:600;"><?= htmlspecialchars($bien['responsable']); ?></div>
+                                        <?php if (!empty($bien['responsable_telefono'])): ?>
+                                            <div style="font-size:0.75rem; color:#666;">📞 <?= htmlspecialchars($bien['responsable_telefono']); ?></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($bien['responsable_email'])): ?>
+                                            <div style="font-size:0.75rem; color:#666;">✉️ <?= htmlspecialchars($bien['responsable_email']); ?></div>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span style="color:#999;">Sin responsable</span>
                                     <?php endif; ?>
                                 </td>
                                 <td style="padding:14px 15px; border-bottom:1px solid #eee;">
