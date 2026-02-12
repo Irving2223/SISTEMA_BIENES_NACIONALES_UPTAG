@@ -120,8 +120,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['
 
 // Obtener todas las ubicaciones para la tabla
 $todas_ubicaciones = [];
+$total_ubicaciones = 0;
+$pagina_actual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
+$registros_por_pagina = 15;
+$busqueda = isset($_GET['buscar']) ? trim($_GET['buscar']) : '';
+
 if (tablaExiste($conn, 'ubicaciones')) {
     $columnas = obtenerColumnas($conn, 'ubicaciones');
+    
+    // Contar total de registros con/sin búsqueda
+    $sql_count = "SELECT COUNT(*) as total FROM ubicaciones";
+    if (!empty($busqueda)) {
+        $sql_count .= " WHERE nombre LIKE '%" . $conn->real_escape_string($busqueda) . "%'";
+    }
+    $result_count = $conn->query($sql_count);
+    if ($result_count && $row = $result_count->fetch_assoc()) {
+        $total_ubicaciones = (int)$row['total'];
+    }
+    
+    // Calcular offset
+    $offset = ($pagina_actual - 1) * $registros_por_pagina;
+    $total_paginas = (int)ceil($total_ubicaciones / $registros_por_pagina);
+    
+    // Asegurar que página actual sea válida
+    if ($pagina_actual > $total_paginas && $total_paginas > 0) {
+        $pagina_actual = $total_paginas;
+        $offset = ($pagina_actual - 1) * $registros_por_pagina;
+    }
     
     // Construir consulta según columnas existentes
     $campos = ['id', 'dependencia_id', 'nombre'];
@@ -131,12 +156,19 @@ if (tablaExiste($conn, 'ubicaciones')) {
     if (in_array('email', $columnas)) $campos[] = 'email';
     if (in_array('activo', $columnas)) $campos[] = 'activo';
     
-    $sql = "SELECT " . implode(', ', $campos) . " FROM ubicaciones ORDER BY nombre ASC";
+    $sql = "SELECT " . implode(', ', $campos) . " FROM ubicaciones";
+    if (!empty($busqueda)) {
+        $sql .= " WHERE nombre LIKE '%" . $conn->real_escape_string($busqueda) . "%'";
+    }
+    $sql .= " ORDER BY nombre ASC LIMIT " . $registros_por_pagina . " OFFSET " . $offset;
     $result = $conn->query($sql);
     if ($result) {
         $todas_ubicaciones = $result->fetch_all(MYSQLI_ASSOC);
     }
 }
+
+// Definir variables para usar en la vista
+$total_paginas = isset($total_paginas) ? $total_paginas : 1;
 
 // Obtener dependencias para mostrar nombre
 $dependencias = [];
@@ -512,6 +544,124 @@ $tiene_responsable = in_array('responsable', $columnas_ubicaciones);
         .info-box li {
             margin-bottom: 5px;
         }
+        
+        /* Pagination Styles */
+        .pagination-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .pagination-info {
+            font-size: 13px;
+            color: #666;
+        }
+        
+        /* Search Box Styles */
+        .search-container {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            max-width: 400px;
+        }
+        
+        .search-box input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: #ff6600;
+            box-shadow: 0 0 0 2px rgba(255, 102, 0, 0.2);
+        }
+        
+        .search-box button {
+            padding: 10px 20px;
+            background-color: #ff6600;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        .search-box button:hover {
+            background-color: #e65100;
+        }
+        
+        .search-results-info {
+            font-size: 13px;
+            color: #666;
+            padding: 10px 15px;
+            background-color: #fff3e0;
+            border-radius: 4px;
+            border-left: 4px solid #ff6600;
+        }
+        
+        .clear-search {
+            font-size: 13px;
+        }
+        
+        .clear-search a {
+            color: #ff6600;
+            text-decoration: none;
+        }
+        
+        .clear-search a:hover {
+            text-decoration: underline;
+        }
+        
+        .pagination {
+            margin: 0;
+        }
+        
+        .pagination > li > a,
+        .pagination > li > span {
+            color: #ff6600;
+            border: 1px solid #ff6600;
+            padding: 8px 12px;
+            margin: 0 2px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .pagination > li > a:hover,
+        .pagination > li > span:hover {
+            background-color: #ff6600;
+            color: white;
+            border-color: #ff6600;
+        }
+        
+        .pagination > .active > a,
+        .pagination > .active > span,
+        .pagination > .active > a:hover,
+        .pagination > .active > span:hover {
+            background-color: #ff6600;
+            border-color: #ff6600;
+            color: white;
+        }
+        
+        .pagination > .disabled > a,
+        .pagination > .disabled > span {
+            color: #999;
+            border-color: #ddd;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -534,7 +684,7 @@ $tiene_responsable = in_array('responsable', $columnas_ubicaciones);
         <!-- Stats -->
         <div class="stats-container">
             <div class="stat-box">
-                <h3><?= count($todas_ubicaciones); ?></h3>
+                <h3><?= $total_ubicaciones; ?></h3>
                 <p>TOTAL UBICACIONES</p>
             </div>
             <div class="stat-box">
@@ -572,6 +722,66 @@ $tiene_responsable = in_array('responsable', $columnas_ubicaciones);
                 <input type="hidden" name="telefono" id="ubicacion_telefono" value="">
                 <input type="hidden" name="email" id="ubicacion_email" value="">
             </form>
+            
+            <!-- Buscador -->
+            <div class="search-container">
+                <form method="GET" action="" class="search-box">
+                    <input type="text" name="buscar" placeholder="Buscar ubicación por nombre..." value="<?= htmlspecialchars($busqueda); ?>" autofocus>
+                    <button type="submit"><i class="zmdi zmdi-search"></i> Buscar</button>
+                    <?php if (!empty($busqueda)): ?>
+                    <a href="?pagina=1" class="btn btn-default clear-search">Limpiar</a>
+                    <?php endif; ?>
+                </form>
+            </div>
+            
+            <?php if (!empty($busqueda)): ?>
+            <div class="search-results-info">
+                <i class="zmdi zmdi-search"></i> 
+                <?php if (count($todas_ubicaciones) > 0): ?>
+                    Se encontraron <?= count($todas_ubicaciones); ?> resultado(s) para "<strong><?= htmlspecialchars($busqueda); ?></strong>"
+                <?php else: ?>
+                    No se encontraron resultados para "<strong><?= htmlspecialchars($busqueda); ?></strong>"
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
+            
+            <!-- Paginación -->
+            <?php if ($total_paginas > 1): ?>
+            <div class="pagination-container">
+                <span class="pagination-info">
+                    Mostrando <?= min(($pagina_actual - 1) * $registros_por_pagina + 1, $total_ubicaciones); ?> - 
+                    <?= min($pagina_actual * $registros_por_pagina, $total_ubicaciones); ?> 
+                    de <?= $total_ubicaciones; ?> registros
+                </span>
+                <ul class="pagination">
+                    <?php if ($pagina_actual > 1): ?>
+                    <li>
+                        <a href="?pagina=<?= $pagina_actual - 1; ?>" aria-label="Anterior">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
+                    
+                    <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
+                        <?php if ($i == 1 || $i == $total_paginas || ($i >= $pagina_actual - 2 && $i <= $pagina_actual + 2)): ?>
+                        <li class="<?= $i == $pagina_actual ? 'active' : ''; ?>">
+                            <a href="?pagina=<?= $i; ?>"><?= $i; ?></a>
+                        </li>
+                        <?php elseif ($i == $pagina_actual - 3 || $i == $pagina_actual + 3): ?>
+                        <li class="disabled"><span>...</span></li>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+                    
+                    <?php if ($pagina_actual < $total_paginas): ?>
+                    <li>
+                        <a href="?pagina=<?= $pagina_actual + 1; ?>" aria-label="Siguiente">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+            <?php endif; ?>
             
             <div class="table-wrapper">
                 <table id="tabla-ubicaciones">
@@ -703,6 +913,44 @@ $tiene_responsable = in_array('responsable', $columnas_ubicaciones);
                     </tbody>
                 </table>
             </div>
+            
+            <!-- Paginación inferior -->
+            <?php if ($total_paginas > 1): ?>
+            <div class="pagination-container">
+                <span class="pagination-info">
+                    Mostrando <?= min(($pagina_actual - 1) * $registros_por_pagina + 1, $total_ubicaciones); ?> - 
+                    <?= min($pagina_actual * $registros_por_pagina, $total_ubicaciones); ?> 
+                    de <?= $total_ubicaciones; ?> registros
+                </span>
+                <ul class="pagination">
+                    <?php if ($pagina_actual > 1): ?>
+                    <li>
+                        <a href="?pagina=<?= $pagina_actual - 1; ?>" aria-label="Anterior">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
+                    
+                    <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
+                        <?php if ($i == 1 || $i == $total_paginas || ($i >= $pagina_actual - 2 && $i <= $pagina_actual + 2)): ?>
+                        <li class="<?= $i == $pagina_actual ? 'active' : ''; ?>">
+                            <a href="?pagina=<?= $i; ?>"><?= $i; ?></a>
+                        </li>
+                        <?php elseif ($i == $pagina_actual - 3 || $i == $pagina_actual + 3): ?>
+                        <li class="disabled"><span>...</span></li>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+                    
+                    <?php if ($pagina_actual < $total_paginas): ?>
+                    <li>
+                        <a href="?pagina=<?= $pagina_actual + 1; ?>" aria-label="Siguiente">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+            <?php endif; ?>
         </div>
 
         <!-- Info Box -->

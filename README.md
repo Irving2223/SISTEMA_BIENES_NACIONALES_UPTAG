@@ -44,7 +44,7 @@ El sistema permite gestionar el registro, control y seguimiento de todos los act
 1. **Clonar o descargar** este repositorio en tu servidor local (ejemplo: `htdocs` en XAMPP)
 2. **Importar la base de datos**: Ejecutar el archivo `bd_inti.sql` en MySQL
    ```bash
-   mysql -u root -p < bd_inti.sql
+   mysql -u root -p < bd_bienes_nacionales.sql
    ```
 3. **Configurar conexión**: Editar `conexion.php` con tus credenciales
 4. **Iniciar servicios**: Apache y MySQL desde XAMPP
@@ -185,25 +185,13 @@ Acceder con las credenciales proporcionadas.
 
 ### Respaldo de Base de Datos
 ```bash
-mysqldump -u root -p bd_inti > respaldo_$(date +%Y%m%d).sql
+mysqldump -u root -p bd_bienes_nacionales.sql > respaldo_$(date +%Y%m%d).sql
 ```
 
 ### Restauración
 ```bash
-mysql -u root -p bd_inti < respaldo_archivo.sql
+mysql -u root -p bd_bienes_nacionales.sql < respaldo_archivo.sql
 ```
-
----
-
-## 👥 Equipo de Desarrollo
-
-- **Desarrollo Original**: 
-  - Brayan Javier Pirona Silva
-  - Irving Jesús Coello Alcalá
-  - Richard Alejandro Molina Nuñez
-  - Dixon Jacob Veliz Gallardo
-
-- **Universidad**: UPTAG (Universidad Politécnica Territorial de阿里斯 Falcón)
 
 ---
 

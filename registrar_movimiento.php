@@ -499,35 +499,8 @@ try {
                 </div>
             </div>
             
-            <!-- Sección: Responsables -->
-            <div class="form-section-title" style="margin-top: 25px; font-size: 1rem; color: #666;">
-                <i class="zmdi zmdi-account"></i> Responsables
-            </div>
-            
-            <div class="field-row">
-                <div class="field-col">
-                    <label for="responsable_origen_id" class="field-label">Responsable de Origen</label>
-                    <select name="responsable_origen_id" id="responsable_origen_id" class="form-control">
-                        <option value="0">Seleccionar...</option>
-                        <?php foreach ($responsables as $resp): ?>
-                            <option value="<?= $resp['id']; ?>">
-                                <?= htmlspecialchars(($resp['cedula'] ?? '') . ' - ' . $resp['nombre']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="field-col">
-                    <label for="responsable_destino_id" class="field-label">Responsable de Destino</label>
-                    <select name="responsable_destino_id" id="responsable_destino_id" class="form-control">
-                        <option value="0">Seleccionar...</option>
-                        <?php foreach ($responsables as $resp): ?>
-                            <option value="<?= $resp['id']; ?>">
-                                <?= htmlspecialchars(($resp['cedula'] ?? '') . ' - ' . $resp['nombre']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-            </div>
+           
+           
             
             <!-- Sección: Estatus Destino -->
             <div class="field-row" id="estatus_destino_container" style="display: none; margin-top: 25px;">

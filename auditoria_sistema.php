@@ -15,6 +15,9 @@ $mensaje_error = '';
 $mensaje_exito = '';
 $registros = [];
 $usuarios = [];
+$total_registros = 0;
+$pagina_actual = isset($_GET['pagina']) ? max(1, (int)$_GET['pagina']) : 1;
+$registros_por_pagina = 15;
 
 // Obtener lista de usuarios para el filtro
 // Primero verificar si la tabla usuarios existe
@@ -57,6 +60,13 @@ $fecha_desde = $_POST['fecha_desde'] ?? date('Y-m-d', strtotime('-7 days'));
 $fecha_hasta = $_POST['fecha_hasta'] ?? date('Y-m-d');
 $cedula_usuario = $_POST['cedula_usuario'] ?? 'todos';
 
+// Mantener filtros en GET para paginación
+$get_params = [];
+if (!empty($fecha_desde)) $get_params[] = 'fecha_desde=' . urlencode($fecha_desde);
+if (!empty($fecha_hasta)) $get_params[] = 'fecha_hasta=' . urlencode($fecha_hasta);
+if ($cedula_usuario !== 'todos') $get_params[] = 'cedula_usuario=' . urlencode($cedula_usuario);
+$query_string = !empty($get_params) ? '&' . implode('&', $get_params) : '';
+
 // Función para obtener color del badge según la acción
 function obtenerColorAccion($accion) {
     $colores = [
@@ -76,6 +86,38 @@ function obtenerColorAccion($accion) {
 
 // Construir consulta base solo si la tabla auditoria existe
 if ($auditoria_existe) {
+    // Primero contar total de registros para paginación
+    $sql_count = "SELECT COUNT(*) as total 
+                  FROM auditoria b 
+                  LEFT JOIN usuarios u ON b.usuario_cedula = u.cedula 
+                  WHERE 1=1";
+    
+    // Añadir condiciones de filtros para el conteo
+    if (!empty($fecha_desde)) {
+        $sql_count .= " AND DATE(b.fecha_accion) >= '" . $conn->real_escape_string($fecha_desde) . "'";
+    }
+    if (!empty($fecha_hasta)) {
+        $sql_count .= " AND DATE(b.fecha_accion) <= '" . $conn->real_escape_string($fecha_hasta) . "'";
+    }
+    if ($cedula_usuario !== 'todos' && !empty($cedula_usuario)) {
+        $sql_count .= " AND b.usuario_cedula = '" . $conn->real_escape_string($cedula_usuario) . "'";
+    }
+    
+    $result_count = $conn->query($sql_count);
+    if ($result_count && $row = $result_count->fetch_assoc()) {
+        $total_registros = (int)$row['total'];
+    }
+    
+    // Calcular paginación
+    $total_paginas = (int)ceil($total_registros / $registros_por_pagina);
+    $offset = ($pagina_actual - 1) * $registros_por_pagina;
+    
+    // Asegurar que página actual sea válida
+    if ($pagina_actual > $total_paginas && $total_paginas > 0) {
+        $pagina_actual = $total_paginas;
+        $offset = ($pagina_actual - 1) * $registros_por_pagina;
+    }
+    
     $sql_base = "SELECT b.*, u.{$col_nombre}, u.{$col_apellido} 
                  FROM auditoria b 
                  LEFT JOIN usuarios u ON b.usuario_cedula = u.cedula 
@@ -83,6 +125,7 @@ if ($auditoria_existe) {
 } else {
     $sql_base = "SELECT 'N/A' as id, 'Tabla auditoria no existe' as accion, 'N/A' as detalle, NOW() as fecha_accion";
     $mensaje_error = "La tabla 'auditoria' no existe en la base de datos.";
+    $total_paginas = 1;
 }
 
 // Añadir condiciones según filtros
@@ -108,7 +151,7 @@ if ($auditoria_existe && $cedula_usuario !== 'todos' && !empty($cedula_usuario))
 }
 
 if ($auditoria_existe) {
-    $sql_base .= " ORDER BY b.fecha_accion DESC";
+    $sql_base .= " ORDER BY b.fecha_accion DESC LIMIT " . $registros_por_pagina . " OFFSET " . $offset;
 }
 
 // Ejecutar consulta con filtros
@@ -188,9 +231,48 @@ if ($result) {
     <?php endif; ?>
 
 <!-- Tabla de Resultados -->
-<?php if (!empty($registros) && isset($_POST['buscar'])): ?>
+<?php if ((!empty($registros) || isset($_POST['buscar'])) && $auditoria_existe): ?>
 <div class="section-container">
-    <h3 class="section-title">Registros Encontrados</h3>
+    <h3 class="section-title">Registros Encontrados (<?= $total_registros; ?>)</h3>
+    
+    <!-- Paginación superior -->
+    <?php if ($total_paginas > 1): ?>
+    <div class="pagination-container">
+        <span class="pagination-info">
+            Mostrando <?= min(($pagina_actual - 1) * $registros_por_pagina + 1, $total_registros); ?> - 
+            <?= min($pagina_actual * $registros_por_pagina, $total_registros); ?> 
+            de <?= $total_registros; ?> registros
+        </span>
+        <ul class="pagination">
+            <?php if ($pagina_actual > 1): ?>
+            <li>
+                <a href="?pagina=<?= $pagina_actual - 1; ?><?= $query_string; ?>" aria-label="Anterior">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>
+            <?php endif; ?>
+            
+            <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
+                <?php if ($i == 1 || $i == $total_paginas || ($i >= $pagina_actual - 2 && $i <= $pagina_actual + 2)): ?>
+                <li class="<?= $i == $pagina_actual ? 'active' : ''; ?>">
+                    <a href="?pagina=<?= $i; ?><?= $query_string; ?>"><?= $i; ?></a>
+                </li>
+                <?php elseif ($i == $pagina_actual - 3 || $i == $pagina_actual + 3): ?>
+                <li class="disabled"><span>...</span></li>
+                <?php endif; ?>
+            <?php endfor; ?>
+            
+            <?php if ($pagina_actual < $total_paginas): ?>
+            <li>
+                <a href="?pagina=<?= $pagina_actual + 1; ?><?= $query_string; ?>" aria-label="Siguiente">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+            <?php endif; ?>
+        </ul>
+    </div>
+    <?php endif; ?>
+    
     <div style="overflow-x: auto; margin: 0 -15px; padding: 0 15px;">
         <table style="width: 100%; border-collapse: collapse; min-width: 900px;">
             <thead>
@@ -234,10 +316,99 @@ if ($result) {
             </tbody>
         </table>
     </div>
+    
+    <!-- Paginación inferior -->
+    <?php if ($total_paginas > 1): ?>
+    <div class="pagination-container">
+        <span class="pagination-info">
+            Mostrando <?= min(($pagina_actual - 1) * $registros_por_pagina + 1, $total_registros); ?> - 
+            <?= min($pagina_actual * $registros_por_pagina, $total_registros); ?> 
+            de <?= $total_registros; ?> registros
+        </span>
+        <ul class="pagination">
+            <?php if ($pagina_actual > 1): ?>
+            <li>
+                <a href="?pagina=<?= $pagina_actual - 1; ?><?= $query_string; ?>" aria-label="Anterior">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>
+            <?php endif; ?>
+            
+            <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
+                <?php if ($i == 1 || $i == $total_paginas || ($i >= $pagina_actual - 2 && $i <= $pagina_actual + 2)): ?>
+                <li class="<?= $i == $pagina_actual ? 'active' : ''; ?>">
+                    <a href="?pagina=<?= $i; ?><?= $query_string; ?>"><?= $i; ?></a>
+                </li>
+                <?php elseif ($i == $pagina_actual - 3 || $i == $pagina_actual + 3): ?>
+                <li class="disabled"><span>...</span></li>
+                <?php endif; ?>
+            <?php endfor; ?>
+            
+            <?php if ($pagina_actual < $total_paginas): ?>
+            <li>
+                <a href="?pagina=<?= $pagina_actual + 1; ?><?= $query_string; ?>" aria-label="Siguiente">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+            <?php endif; ?>
+        </ul>
+    </div>
+    <?php endif; ?>
 </div>
 <?php endif; ?>
 
 </div>
+
+<!-- Estilos de paginación -->
+<style>
+    .pagination-container {
+        margin-top: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 15px 0;
+    }
+    
+    .pagination-info {
+        font-size: 13px;
+        color: #666;
+    }
+    
+    .pagination > li > a,
+    .pagination > li > span {
+        color: #ff6600;
+        border: 1px solid #ff6600;
+        padding: 8px 12px;
+        margin: 0 2px;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+    
+    .pagination > li > a:hover,
+    .pagination > li > span:hover {
+        background-color: #ff6600;
+        color: white;
+        border-color: #ff6600;
+    }
+    
+    .pagination > .active > a,
+    .pagination > .active > span,
+    .pagination > .active > a:hover,
+    .pagination > .active > span:hover {
+        background-color: #ff6600;
+        border-color: #ff6600;
+        color: white;
+    }
+    
+    .pagination > .disabled > a,
+    .pagination > .disabled > span {
+        color: #999;
+        border-color: #ddd;
+        cursor: not-allowed;
+    }
+</style>
 
 <?php include("footer.php"); ?>
 

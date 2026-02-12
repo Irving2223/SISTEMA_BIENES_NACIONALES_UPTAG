@@ -205,9 +205,10 @@ $sql_categorias = "
 ";
 $resultado_categorias = ejecutarConsulta($conn, $sql_categorias, "Bienes por Categoría");
 
-// --- 10. Total de responsables ---
-$sql_responsables = "SELECT COUNT(*) AS total FROM responsables WHERE activo = 1";
-$resultado_responsables = ejecutarConsulta($conn, $sql_responsables, "Total de Responsables");
+// --- 10. Total de responsables (desde tabla ubicaciones) ---
+// Contar ubicaciones que tienen responsable asignado
+$sql_responsables = "SELECT COUNT(*) AS total FROM ubicaciones WHERE activo = 1 AND responsable IS NOT NULL AND responsable <> ''";
+$resultado_responsables = ejecutarConsulta($conn, $sql_responsables, "Total de Responsables desde ubicaciones");
 $total_responsables = $resultado_responsables ? $resultado_responsables->fetch_assoc()['total'] : 0;
 
 // Determinar si el usuario es administrador
